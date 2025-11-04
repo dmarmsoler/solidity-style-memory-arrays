@@ -1,0 +1,5 @@
+test19::t19: ERROR
+ - /contracts/test19.sol:15:2: Postcondition 'x[i][m][n][o] == value ' might not hold at end of function.
+test19::[implicit_constructor]: OK
+Use --show-warnings to see 1 warning.
+Errors were found by the verifier.

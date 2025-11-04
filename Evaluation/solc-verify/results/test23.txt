@@ -1,0 +1,5 @@
+C::f: ERROR
+ - /contracts/test23.sol:6:5: Postcondition 'x[0][0] == false' might not hold at end of function.
+C::[implicit_constructor]: OK
+Use --show-warnings to see 2 warnings.
+Errors were found by the verifier.

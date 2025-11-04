@@ -1,0 +1,6 @@
+*~
+\#*\#
+*.marks
+/output
+*.log
+.gitattributes

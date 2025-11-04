@@ -1,0 +1,140 @@
+ ./docker_solcmc examples test20.sol test20 60 eld -horn
+### Running with solver eld
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '2018',
+      formattedMessage: 'Warning: Function state mutability can be restricted to pure\n' +
+        '  --> fileName:10:1:\n' +
+        '   |\n' +
+        '10 | function t20(uint8[10][10][10] memo ... ory y, uint8[10][10][10] memory z) \n' +
+        '   | ^ (Relevant source part starts here and spans across multiple lines).\n' +
+        '\n',
+      message: 'Function state mutability can be restricted to pure',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    },
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        'i = 255\n' +
+        'j = 255\n' +
+        'k = 255\n' +
+        'l = 255\n' +
+        'm = 0\n' +
+        'n = 0\n' +
+        'value = 1\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test20.constructor()\n' +
+        'test20.t20(x, 255, 255, 255, 255, 0, 0, 1, y, z)\n' +
+        '  --> fileName:17:7:\n' +
+        '   |\n' +
+        '17 |       assert (x[i][k][n] == value);\n' +
+        '   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        'i = 255\n' +
+        'j = 255\n' +
+        'k = 255\n' +
+        'l = 255\n' +
+        'm = 0\n' +
+        'n = 0\n' +
+        'value = 1\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test20.constructor()\n' +
+        'test20.t20(x, 255, 255, 255, 255, 0, 0, 1, y, z)',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver eld cex:
+Warning: CHC: Assertion violation happens here.
+Counterexample:
+
+i = 255
+j = 255
+k = 255
+l = 255
+m = 0
+n = 0
+value = 1
+
+Transaction trace:
+test20.constructor()
+test20.t20(x, 255, 255, 255, 255, 0, 0, 1, y, z)
+  --> fileName:17:7:
+   |
+17 |       assert (x[i][k][n] == value);
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver eld solved in 4596.476701006293ms
+(**************************************)
+./docker_solcmc examples test20.sol test20 60 z3
+### Running with solver z3
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '2018',
+      formattedMessage: 'Warning: Function state mutability can be restricted to pure\n' +
+        '  --> fileName:10:1:\n' +
+        '   |\n' +
+        '10 | function t20(uint8[10][10][10] memo ... ory y, uint8[10][10][10] memory z) \n' +
+        '   | ^ (Relevant source part starts here and spans across multiple lines).\n' +
+        '\n',
+      message: 'Function state mutability can be restricted to pure',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    },
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        '  --> fileName:17:7:\n' +
+        '   |\n' +
+        '17 |       assert (x[i][k][n] == value);\n' +
+        '   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver z3 cex:
+Warning: CHC: Assertion violation happens here.
+  --> fileName:17:7:
+   |
+17 |       assert (x[i][k][n] == value);
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver z3 solved in 173.98721000552177ms

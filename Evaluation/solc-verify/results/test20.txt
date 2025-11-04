@@ -1,0 +1,5 @@
+test20::t20: ERROR
+ - /contracts/test20.sol:24:1: Postcondition 'x[i][m][n] == value ' might not hold at end of function.
+test20::[implicit_constructor]: OK
+Use --show-warnings to see 1 warning.
+Errors were found by the verifier.

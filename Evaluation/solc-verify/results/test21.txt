@@ -1,0 +1,4 @@
+test21::t21: ERROR
+ - /contracts/test21.sol:15:2: Postcondition 'x[i][m][n][o] == value ' might not hold at end of function.
+test21::[implicit_constructor]: OK
+Errors were found by the verifier.

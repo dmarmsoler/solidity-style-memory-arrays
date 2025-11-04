@@ -1,0 +1,5 @@
+test17::t17: ERROR
+ - /contracts/test17.sol:9:2: Postcondition 'x[i][j] == value' might not hold at end of function.
+test17::[implicit_constructor]: OK
+Use --show-warnings to see 2 warnings.
+Errors were found by the verifier.

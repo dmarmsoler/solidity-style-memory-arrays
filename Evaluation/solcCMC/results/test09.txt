@@ -1,0 +1,19 @@
+./docker_solcmc examples test09.sol test09 60 eld -horn
+### Running with solver eld
+### Entire output:
+{ errors: [], sources: { fileName: { id: 0 } } }
+### End output
+
+
+####### Final solving and time report:
+Solver eld solved in 2640.967802003026ms
+(**************************************)
+./docker_solcmc examples test09.sol test09 60 z3
+### Running with solver z3
+### Entire output:
+{ errors: [], sources: { fileName: { id: 0 } } }
+### End output
+
+
+####### Final solving and time report:
+Solver z3 solved in 108.97912199795246ms

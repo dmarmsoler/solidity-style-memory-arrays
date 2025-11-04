@@ -1,0 +1,103 @@
+./docker_solcmc examples test17.sol test17 60 eld -horn
+### Running with solver eld
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        'i = 255\n' +
+        'j = 0\n' +
+        'k = 255\n' +
+        'value = 254\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test17.constructor()\n' +
+        'test17.t17(x, 255, 0, 255, 254, y)\n' +
+        '  --> fileName:17:7:\n' +
+        '   |\n' +
+        '17 |       assert (x[i][k] == value);\n' +
+        '   |       ^^^^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        'i = 255\n' +
+        'j = 0\n' +
+        'k = 255\n' +
+        'value = 254\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test17.constructor()\n' +
+        'test17.t17(x, 255, 0, 255, 254, y)',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver eld cex:
+Warning: CHC: Assertion violation happens here.
+Counterexample:
+
+i = 255
+j = 0
+k = 255
+value = 254
+
+Transaction trace:
+test17.constructor()
+test17.t17(x, 255, 0, 255, 254, y)
+  --> fileName:17:7:
+   |
+17 |       assert (x[i][k] == value);
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver eld solved in 4265.086034998298ms
+(**************************************)
+./docker_solcmc examples test17.sol test17 60 z3
+### Running with solver z3
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        '  --> fileName:17:7:\n' +
+        '   |\n' +
+        '17 |       assert (x[i][k] == value);\n' +
+        '   |       ^^^^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver z3 cex:
+Warning: CHC: Assertion violation happens here.
+  --> fileName:17:7:
+   |
+17 |       assert (x[i][k] == value);
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver z3 solved in 137.42824000120163ms

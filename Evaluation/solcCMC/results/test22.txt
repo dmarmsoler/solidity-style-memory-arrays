@@ -1,0 +1,91 @@
+./docker_solcmc examples test22.sol test22 60 eld -horn
+### Running with solver eld
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test22.constructor()\n' +
+        'test22.t22(x)\n' +
+        '  --> fileName:15:9:\n' +
+        '   |\n' +
+        '15 |         assert (x[0] == false);\n' +
+        '   |         ^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.\n' +
+        'Counterexample:\n' +
+        '\n' +
+        '\n' +
+        'Transaction trace:\n' +
+        'test22.constructor()\n' +
+        'test22.t22(x)',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver eld cex:
+Warning: CHC: Assertion violation happens here.
+Counterexample:
+
+
+Transaction trace:
+test22.constructor()
+test22.t22(x)
+  --> fileName:15:9:
+   |
+15 |         assert (x[0] == false);
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver eld solved in 3929.0054589957ms
+(************************************)
+./docker_solcmc examples test22.sol test22 60 z3
+### Running with solver z3
+### Entire output:
+{
+  errors: [
+    {
+      component: 'general',
+      errorCode: '6328',
+      formattedMessage: 'Warning: CHC: Assertion violation happens here.\n' +
+        '  --> fileName:15:9:\n' +
+        '   |\n' +
+        '15 |         assert (x[0] == false);\n' +
+        '   |         ^^^^^^^^^^^^^^^^^^^^^^\n' +
+        '\n',
+      message: 'CHC: Assertion violation happens here.',
+      severity: 'warning',
+      sourceLocation: [Object],
+      type: 'Warning'
+    }
+  ],
+  sources: { fileName: { id: 0 } }
+}
+### End output
+##### Solver z3 cex:
+Warning: CHC: Assertion violation happens here.
+  --> fileName:15:9:
+   |
+15 |         assert (x[0] == false);
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+
+##### End counterexample
+
+
+####### Final solving and time report:
+Solver z3 solved in 189.28347900509834ms

@@ -1,0 +1,4 @@
+test13::t13: OK
+test13::[implicit_constructor]: OK
+Use --show-warnings to see 1 warning.
+No errors found.

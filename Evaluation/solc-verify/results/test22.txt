@@ -1,0 +1,4 @@
+test22::t22: OK
+test22::[implicit_constructor]: OK
+Use --show-warnings to see 2 warnings.
+No errors found.

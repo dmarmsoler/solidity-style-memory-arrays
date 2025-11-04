@@ -1,0 +1,3 @@
+test02::t02: OK
+test02::[implicit_constructor]: OK
+No errors found.
