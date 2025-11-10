@@ -253,8 +253,8 @@ definition copy_storage_memory :: "'v storage_data \<Rightarrow> location \<Righ
     }"
 
 global_interpretation storage_data: data storage_data.Value storage_data.Array
-  defines copy_memory_storage_safe = storage_data.copy_memory_safe
-      and copy_memory_storage = storage_data.copy_memory
+  defines copy_memory_storage_safe = storage_data.copy_safe
+      and copy_memory_storage = storage_data.copy
       and locs_storage_safe = storage_data.locs_safe
       and locs_storage = storage_data.locs
   .

@@ -168,9 +168,9 @@ definition P where "P i j s \<equiv> (case (Stack s) $$ (STR ''x'') of
               Some (kdata.Memory l') \<Rightarrow>
                 (pred_some
                   (\<lambda>cd'. (\<forall>i'<5. i' \<noteq> i \<longrightarrow> alookup [Uint (word_of_nat i), Uint  (word_of_nat i')] cd = Some (the (alookup [Uint (word_of_nat j), Uint  (word_of_nat i')] cd'))))
-                  (acopy_memory (State.Memory s) l'))
+                  (acopy (State.Memory s) l'))
              | _ \<Rightarrow> False)
-            (acopy_memory (State.Memory s) l)
+            (acopy (State.Memory s) l)
       | _ \<Rightarrow> False)"
 
 lemma assign2:

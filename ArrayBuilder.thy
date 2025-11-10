@@ -343,7 +343,7 @@ definition(in Contract) getItems_post where
   "getItems_post ow start_state return_value end_state \<equiv>
     pred_some
       (\<lambda>xs. filter_items end_state ow (map (unat \<circ> valtype.uint \<circ> adata.vt) (adata.ar xs)))
-      (acopy_memory (State.Memory end_state) (rvalue.memloc return_value))"
+      (acopy (State.Memory end_state) (rvalue.memloc return_value))"
 
 lemma (in Contract) filter_items_prefix_suc_neq:
   fixes ad ar x a
@@ -388,11 +388,11 @@ section \<open>While Invariant\<close>
 
 definition(in Contract) while_inv where
   "while_inv own state \<equiv>
-    pred_some (\<lambda>xs. \<exists>ar. xs = adata.Array ar \<and> filter_items_prefix (unat (valtype.uint (kdata.vt (state.Stack state $$! i)))) (state.Storage state this items) (valtype.ad (kdata.vt (state.Stack state $$! owner))) (map (unat \<circ> valtype.uint \<circ> adata.vt) (take (unat (valtype.uint (kdata.vt (state.Stack state $$! counter)))) ar))) (acopy_memory (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
+    pred_some (\<lambda>xs. \<exists>ar. xs = adata.Array ar \<and> filter_items_prefix (unat (valtype.uint (kdata.vt (state.Stack state $$! i)))) (state.Storage state this items) (valtype.ad (kdata.vt (state.Stack state $$! owner))) (map (unat \<circ> valtype.uint \<circ> adata.vt) (take (unat (valtype.uint (kdata.vt (state.Stack state $$! counter)))) ar))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
     \<and> acheck (state.Memory state) (the (alocs (state.Memory state) (kdata.memloc (state.Stack state $$! result))))
     \<and> state.Stack state $$ owner = Some (kdata.Value own)
     \<and> length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own)) = unat (valtype.uint (storage_data.vt (storage_data.mp (state.Storage state this itemCount) own)))
-    \<and> pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy_memory (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
+    \<and> pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
     \<and> (\<exists>ml. state.Stack state $$ result = Some (kdata.Memory ml)
         \<and> ml < length (state.Memory state)
         \<and> (\<exists>ma0. state.Memory state ! ml = mdata.Array ma0
@@ -417,14 +417,14 @@ lemma(in Contract) while_init:
       and "state.Stack state $$ owner = Some (kdata.Value own)"
       and "length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own)) = unat (valtype.uint (storage_data.vt (storage_data.mp (state.Storage state this itemCount) own)))"
       and "length (storage_data.ar (state.Storage state this items)) < 2^256"
-      and "pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy_memory (State.Memory state) (kdata.memloc (state.Stack state $$! result)))"
+      and "pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))"
       and "(\<exists>ml. state.Stack state $$ result = Some (kdata.Memory ml)
             \<and> ml < length (state.Memory state)
             \<and> (\<exists>ma0. state.Memory state ! ml = mdata.Array ma0
                 \<and> (\<forall>i<length ma0. (ma0 ! i) < length (state.Memory state) \<and> (\<exists>ix. state.Memory state ! (ma0!i) = mdata.Value (valtype.Uint ix)))))"
       and "(\<exists>x. state.Stack state $$ i = Some (kdata.Value (valtype.Uint x)))"
       and "(\<exists>x. state.Stack state $$ counter = Some (kdata.Value (valtype.Uint x)))"
-      and "acopy_memory
+      and "acopy
             (state.Memory state)
             (kdata.memloc (Stack state $$! result))
           = Some (adata.Array (array (unat si) (adata.Value (Uint 0))))"

@@ -78,12 +78,12 @@ lemma is_Array_minit:
     shows "mdata.is_Array b"
   using assms
 proof -
-  have *: "a_data.copy_memory_safe {||} baa l = Some cd"
-    using minit_copy[OF assms(1)] by (simp add: a_data.copy_memory_def prefix_id)
-  then obtain as where "a_data.copy_memory_safe {||} baa a = Some (adata.Array as)" using copy_memory_alookup_obtains[OF * assms(2)]
+  have *: "a_data.copy_safe {||} baa l = Some cd"
+    using minit_copy[OF assms(1)] by (simp add: a_data.copy_def prefix_id)
+  then obtain as where "a_data.copy_safe {||} baa a = Some (adata.Array as)" using copy_memory_alookup_obtains[OF * assms(2)]
     using assms(4) by fastforce
   then show ?thesis using assms(3)
-    by (metis assms(2) adata.distinct(1) acopy_memory_safe_def data.mlookup_copy_memory_safe mdata.collapse(1) mdata.exhaust_disc)
+    by (metis assms(2) adata.distinct(1) acopy_safe_def data.mlookup_copy_memory_safe mdata.collapse(1) mdata.exhaust_disc)
 qed
 
 declare(in Contract) assign_stack.simps [simp del]
@@ -93,14 +93,14 @@ section "Memory Calculus"
 definition pred_memory where
   "pred_memory i P r s =
     (case (Stack s) $$ i of
-      Some (kdata.Memory l) \<Rightarrow> pred_some P (acopy_memory (State.Memory s) l)
+      Some (kdata.Memory l) \<Rightarrow> pred_some P (acopy (State.Memory s) l)
     | _ \<Rightarrow> False)"
 
 text \<open>Needs to be used manually\<close>
 lemma pred_some_copy_memory:
-  assumes "acopy_memory m l = Some cd"
+  assumes "acopy m l = Some cd"
       and "P cd"
-    shows "pred_some P (acopy_memory m l)"
+    shows "pred_some P (acopy m l)"
   using assms unfolding pred_some_def by auto
 
 text \<open>This destruction rule needs to be instantiated manually\<close>
@@ -770,23 +770,23 @@ subsection \<open>Copy Memory\<close>
 lemma copy_minit:
   assumes "Memory.minit cd m0 = (l0, m1)"
       and "alocs m0 l1 = Some (the (alocs m0 l1))"
-      and "acopy_memory m0 l1 = Some cd'"
-    shows "acopy_memory m1 l1 = Some cd'"
+      and "acopy m0 l1 = Some cd'"
+    shows "acopy m1 l1 = Some cd'"
   using assms
   by (metis minit_sprefix a_data.copy_memory_append snd_conv sprefix_prefix)
 
 lemma copy_mupdate_value:
   assumes "mvalue_update xs (l0, mdata.Value v, m0) = Some m1"
       and "acheck m0 (the (alocs m0 l0))"
-      and "acopy_memory m0 l0 = Some cd0"
-    shows "acopy_memory m1 l0 = Some (the (aupdate xs (adata.Value v) cd0))" 
+      and "acopy m0 l0 = Some cd0"
+    shows "acopy m1 l0 = Some (the (aupdate xs (adata.Value v) cd0))" 
 proof-
   from assms(1) obtain l
     where l_def: "mlookup m0 xs l0 = Some l"
     and *: "l < length m0"
     and **: "m1 = m0[l:=mdata.Value v]" using mvalue_update_obtain by metis
   moreover have 1: "alocs_safe {||} m0 l0 = Some (the (alocs_safe {||} m0 l0))" using a_data.locs_copy_memory_some
-    by (metis assms(3) option.sel a_data.copy_memory_def)
+    by (metis assms(3) option.sel a_data.copy_def)
   moreover have 2: "alocs_safe {||} m0 l = Some (the (alocs_safe {||} m0 l))"
     by (metis "1" l_def option.sel a_data.locs_def a_data.locs_safe_mlookup_locs)
   moreover have 3: "\<forall>l'|\<in>|the (alocs_safe {||} m0 l0) |-| (the (alocs_safe {||} m0 l)). m1 $ l' = m0 $ l'"
@@ -797,13 +797,13 @@ proof-
     ultimately have "l \<noteq> l'" by blast
     then show " m1 $ l' = m0 $ l'" unfolding nth_safe_def using ** by (simp)
   qed
-  moreover from assms(2) have 4: "acopy_memory_safe {||} m0 l0 = Some (the (acopy_memory_safe {||} m0 l0))"
-    by (metis assms(3) option.sel a_data.copy_memory_def)
-  moreover from assms obtain cd' where 6: "acopy_memory_safe {||} m1 l0 = Some cd'"
+  moreover from assms(2) have 4: "acopy_safe {||} m0 l0 = Some (the (acopy_safe {||} m0 l0))"
+    by (metis assms(3) option.sel a_data.copy_def)
+  moreover from assms obtain cd' where 6: "acopy_safe {||} m1 l0 = Some cd'"
     by (metis mvalue_update_obtain a_data.copy_memory_safe_update_value
-        a_data.copy_memory_def)
+        a_data.copy_def)
   ultimately show ?thesis using copy_memory_safe_lookup_update_value[OF l_def * ** 1 ]
-    by (metis assms(2,3) option.distinct(1) option.exhaust_sel a_data.copy_memory_def a_data.locs_def)
+    by (metis assms(2,3) option.distinct(1) option.exhaust_sel a_data.copy_def a_data.locs_def)
 qed
 
 lemma copy_mupdate:
@@ -812,9 +812,9 @@ lemma copy_mupdate:
       and "m0 $ l2' = Some v"
       and "acheck m0 (the (alocs m0 l1))"
       and "the (alocs m0 l1) |\<inter>| the (alocs m0 l2) = {||}"
-      and "acopy_memory m0 l1 = Some cd1"
-      and "acopy_memory m0 l2 = Some cd2"
-    shows "acopy_memory m1 l1 = 
+      and "acopy m0 l1 = Some cd1"
+      and "acopy m0 l2 = Some cd2"
+    shows "acopy m1 l1 = 
       Some (the (alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1 cd cd1)))"
 proof-
   from assms(1) obtain l
@@ -823,11 +823,11 @@ proof-
     and **: "m1 = m0[l:=v]" using mvalue_update_obtain by metis
   then have 0: "m1 $ l = m0 $ l2'" by (simp add: assms(3))
   moreover have 1: "alocs_safe {||} m0 l1 = Some (the (alocs_safe {||} m0 l1))" using a_data.locs_copy_memory_some
-    by (metis assms(6) option.sel a_data.copy_memory_def)
+    by (metis assms(6) option.sel a_data.copy_def)
   moreover have 2: "alocs_safe {||} m0 l = Some (the (alocs_safe {||} m0 l))"
     by (metis "1" l_def option.sel a_data.locs_def a_data.locs_safe_mlookup_locs)
   moreover have 3: "alocs_safe {||} m0 l2= Some (the (alocs_safe {||} m0 l2))"  using a_data.locs_copy_memory_some
-    by (metis assms(7) option.sel a_data.copy_memory_def)
+    by (metis assms(7) option.sel a_data.copy_def)
   moreover have 4: "\<forall>l|\<in>|the (alocs_safe {||} m0 l1) |-| the (alocs_safe {||} m0 l). m1 $ l = m0 $ l"
   proof
     fix l' assume "l' |\<in>|the (alocs_safe {||} m0 l1) |-| (the (alocs_safe {||} m0 l))"
@@ -842,10 +842,10 @@ proof-
     moreover have "l |\<in>| the (alocs_safe {||} m0 l1)"
       by (metis "1" data.locs_safe_mlookup l_def alocs_safe_def)
     moreover have 3: "alocs_safe {||} m0 l2'= Some (the (alocs_safe {||} m0 l2'))"  using a_data.locs_copy_memory_some
-      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_memory_def)
+      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_def)
     ultimately have "l \<noteq> l'" using assms(5)
       by (smt (verit, ccfv_SIG) "3" assms(2,7) data.mlookup_locs_subs disjoint_iff_fnot_equal finsert_fsubset
-          alocs_safe_def mk_disjoint_finsert option.sel a_data.copy_memory_def a_data.locs_copy_memory_some
+          alocs_safe_def mk_disjoint_finsert option.sel a_data.copy_def a_data.locs_copy_memory_some
           a_data.locs_def)
     then show "m1 $ l' = m0 $ l'" unfolding nth_safe_def using ** by (simp)
   qed
@@ -866,17 +866,17 @@ proof-
     have "l |\<in>| the (alocs_safe {||} m0 l1)"
       by (metis "1" data.locs_safe_mlookup l_def alocs_safe_def)
     moreover have 3: "alocs_safe {||} m0 l2'= Some (the (alocs_safe {||} m0 l2'))"  using a_data.locs_copy_memory_some
-      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_memory_def)
+      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_def)
     ultimately show ?thesis using assms(5)
       by (smt (verit, ccfv_SIG) "3" assms(2,7) data.mlookup_locs_subs disjoint_iff_fnot_equal finsert_fsubset
-          alocs_safe_def mk_disjoint_finsert option.sel a_data.copy_memory_def a_data.locs_copy_memory_some
+          alocs_safe_def mk_disjoint_finsert option.sel a_data.copy_def a_data.locs_copy_memory_some
           a_data.locs_def)
   qed
   moreover have "alocs_safe {||} m0 l2'= Some (the (alocs_safe {||} m0 l2'))"  using a_data.locs_copy_memory_some
-      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_memory_def)
-  ultimately obtain cd' where 9: "acopy_memory_safe {||} m1 l1 = Some cd'"
+      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_def)
+  ultimately obtain cd' where 9: "acopy_safe {||} m1 l1 = Some cd'"
     using a_data.update_some_obtains_copy[OF l_def 0 1 2 _ 4 5 _ _ _ 6 7 8] assms(4,6,7) 
-    by (metis inf_bot_left a_data.copy_memory_def a_data.locs_def
+    by (metis inf_bot_left a_data.copy_def a_data.locs_def
         a_data.locs_safe_copy_memory_safe)
   moreover have "\<forall>l|\<in>|the (alocs_safe {||} m0 l2). m1 $ l = m0 $ l"
   proof
@@ -884,32 +884,32 @@ proof-
     moreover have "l |\<in>| the (alocs_safe {||} m0 l1)"
       by (metis "1" data.locs_safe_mlookup l_def alocs_safe_def)
     moreover have 3: "alocs_safe {||} m0 l2'= Some (the (alocs_safe {||} m0 l2'))"  using a_data.locs_copy_memory_some
-      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_memory_def)
+      by (metis assms(2,7) data.locs_safe_mlookup data.locs_safe_in_subs alocs_safe_def option.sel a_data.copy_def)
     ultimately have "l \<noteq> l'" using assms(5) by (metis disjoint_iff_fnot_equal a_data.locs_def)
     then show "m1 $ l' = m0 $ l'" unfolding nth_safe_def using ** by (simp)
   qed
-  moreover from assms(6) have "acopy_memory_safe {||} m0 l1 = Some cd1"
-    by (simp add: a_data.copy_memory_def)
-  moreover from assms(7) have "acopy_memory_safe {||} m0 l2 = Some cd2"
-    by (simp add: a_data.copy_memory_def)
+  moreover from assms(6) have "acopy_safe {||} m0 l1 = Some cd1"
+    by (simp add: a_data.copy_def)
+  moreover from assms(7) have "acopy_safe {||} m0 l2 = Some cd2"
+    by (simp add: a_data.copy_def)
   moreover have "acheck m0 (the (alocs_safe {||} m0 l1))"
     by (metis assms(4) a_data.locs_def)
   ultimately show ?thesis using copy_memory_safe_lookup_update[OF l_def assms(2) 0 1 2 3 4 ]
-    by (metis option.sel a_data.copy_memory_def)
+    by (metis option.sel a_data.copy_def)
 qed
 
 lemma copy_memory_mupdate:
   assumes "mvalue_update is1 (l0, v, m0) = Some m1"
       and "the (mlookup m0 is1 l0) |\<notin>| the (alocs m0 l1)"
-      and "acopy_memory m0 l1 = Some cd0"
-    shows "acopy_memory m1 l1 = Some cd0"
+      and "acopy m0 l1 = Some cd0"
+    shows "acopy m1 l1 = Some cd0"
 proof -
   from assms(1) obtain l
     where l_def: "mlookup m0 is1 l0 = Some l"
     and *: "l < length m0"
     and **: "m1 = m0[l:=v]" using mvalue_update_obtain by metis
   moreover from assms(3) obtain L where L_def: "alocs m0 l1 = Some L"
-    by (metis a_data.copy_memory_def a_data.locs_copy_memory_some a_data.locs_def)
+    by (metis a_data.copy_def a_data.locs_copy_memory_some a_data.locs_def)
   moreover from assms(2) ** L_def l_def have "\<forall>l |\<in>| L. m1 $ l = m0 $ l" unfolding nth_safe_def
     apply (simp add: split:if_split_asm)
     by (metis nth_list_update_neq)
@@ -1130,13 +1130,13 @@ lemma isValue_isArray_all:
   assumes "mdata.is_Value aa"
       and "mlookup m0 xs l0 = Some ya"
       and "m0 $ ya = Some aa"
-      and "acopy_memory m0 l0 = Some cd"
+      and "acopy m0 l0 = Some cd"
       and "adata.is_Array (the (alookup xs cd))"
   shows thesis
 proof -
   from copy_memory_alookup_obtains[OF _ assms(2), of "{||}" cd]
-  obtain cd' where "acopy_memory_safe {||} m0 ya = Some cd'" and "alookup xs cd = Some cd'"
-    using assms(4) unfolding a_data.copy_memory_def by blast
+  obtain cd' where "acopy_safe {||} m0 ya = Some cd'" and "alookup xs cd = Some cd'"
+    using assms(4) unfolding a_data.copy_def by blast
   with assms(1,3) have "adata.is_Value cd'" by (auto simp add:case_memory_def split:option.split mdata.split_asm)
   then show ?thesis using assms
     by (simp add: \<open>alookup xs cd = Some cd'\<close> adata.distinct_disc(1))

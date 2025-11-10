@@ -1773,19 +1773,19 @@ qed
 
 section \<open>Copy from Memory\<close>
 
-function copy_memory_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> 'd option" where
-  "copy_memory_safe s m l = 
+function copy_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> 'd option" where
+  "copy_safe s m l = 
    (if l |\<in>| s then None else
       case_memory m l
         (\<lambda>v. Some (Value v))
-        (\<lambda>xs. those (map (copy_memory_safe (finsert l s) m) xs) \<bind> Some \<circ> Array))"
+        (\<lambda>xs. those (map (copy_safe (finsert l s) m) xs) \<bind> Some \<circ> Array))"
 by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(s,m,_). card ({0..length m} - fset s))")
   using card_less_card by auto
 
 lemma copy_memory_safe_cases:
-  assumes "copy_memory_safe s m l = Some c"
+  assumes "copy_safe s m l = Some c"
   obtains (basic) v
     where "m $ l = Some (mdata.Value v)"
       and "l |\<notin>| s"
@@ -1793,44 +1793,44 @@ lemma copy_memory_safe_cases:
     | (array) xs as
     where "l |\<notin>| s"
       and "m $ l = Some (mdata.Array xs)"
-      and "those (map (copy_memory_safe (finsert l s) m) xs) = Some as"
+      and "those (map (copy_safe (finsert l s) m) xs) = Some as"
       and "c = Array as"
   using assms
   apply (cases "m $ l", auto split:if_split_asm mdata.split_asm simp add:case_memory_def)
-  by (case_tac "those (map (copy_memory_safe (finsert l s) m) x2)") auto
+  by (case_tac "those (map (copy_safe (finsert l s) m) x2)") auto
 
 lemma copy_memory_safe_array:
   assumes "m0 $ l1 = Some (mdata.Array ls)"
-      and "copy_memory_safe s m0 l1 = Some cd1"
+      and "copy_safe s m0 l1 = Some cd1"
       and "ls $ i' = Some l''"
-      and cd'_def: "copy_memory_safe (finsert l1 s) m0 l'' = Some cd'"
+      and cd'_def: "copy_safe (finsert l1 s) m0 l'' = Some cd'"
   obtains cs
     where "cd1 = Array cs"
       and "cs $ i' = Some cd'"
       and "length cs = length ls"
   using assms
   apply (auto simp add:case_memory_def split:if_split_asm)
-  apply (case_tac "those (map (copy_memory_safe (finsert l1 s) m0) ls)",auto)
+  apply (case_tac "those (map (copy_safe (finsert l1 s) m0) ls)",auto)
   by (metis (no_types, lifting) bind.bind_lunit cd'_def map_eq_imp_length_eq those_map_nth those_some_map)
 
 lemma copy_memory_safe_update_value:
-  assumes "copy_memory_safe s m l = Some cd"
+  assumes "copy_safe s m l = Some cd"
       and "m' = m[l' := mdata.Value v]"
-    shows "\<exists>cd'. copy_memory_safe s m' l = Some cd'"
+    shows "\<exists>cd'. copy_safe s m' l = Some cd'"
 proof -
   {fix s
     have
-      "\<forall>cd m'. copy_memory_safe s m l = Some cd \<longrightarrow> m' = m[l' := mdata.Value v]
-       \<longrightarrow> (\<exists>cd'. copy_memory_safe s m' l = Some cd')" (is "?P s m l")
-  proof (induction rule:copy_memory_safe.induct[where ?P="?P"])
+      "\<forall>cd m'. copy_safe s m l = Some cd \<longrightarrow> m' = m[l' := mdata.Value v]
+       \<longrightarrow> (\<exists>cd'. copy_safe s m' l = Some cd')" (is "?P s m l")
+  proof (induction rule:copy_safe.induct[where ?P="?P"])
     case i: (1 s m' l)
     show ?case
     proof (rule, rule, rule, rule)
       fix cd m''
-      assume 1: "copy_memory_safe s m' l = Some cd"
+      assume 1: "copy_safe s m' l = Some cd"
          and 2: "m'' = m'[l' := mdata.Value v]"
       from 1 
-      show "\<exists>cd'. copy_memory_safe s m'' l = Some cd'"
+      show "\<exists>cd'. copy_safe s m'' l = Some cd'"
       proof (cases rule: copy_memory_safe_cases)
         case (basic v)
         then show ?thesis
@@ -1856,16 +1856,16 @@ proof -
           case False
           then have "m'' $ l = Some (mdata.Array xs)"
             using array(2) 2 unfolding nth_safe_def by (auto split:if_split_asm)
-          moreover have "\<exists>as. those (map (copy_memory_safe (finsert l s) m'') xs) = Some as"
+          moreover have "\<exists>as. those (map (copy_safe (finsert l s) m'') xs) = Some as"
           proof -
             have "\<forall>x cd. x \<in> set xs \<and>
-             copy_memory_safe (finsert l s) m' x = Some cd \<longrightarrow>
-             (\<exists>cd'. copy_memory_safe (finsert l s) m'' x = Some cd')"
+             copy_safe (finsert l s) m' x = Some cd \<longrightarrow>
+             (\<exists>cd'. copy_safe (finsert l s) m'' x = Some cd')"
             using i[OF array(1,2)] 2 by blast
-            then have "\<forall>x. x \<in> set xs \<longrightarrow> (\<exists>cd'. copy_memory_safe (finsert l s) m'' x = Some cd')"
+            then have "\<forall>x. x \<in> set xs \<longrightarrow> (\<exists>cd'. copy_safe (finsert l s) m'' x = Some cd')"
               using those_map_none[OF array(3)] by simp
             then show ?thesis
-              using those_map_some_some[of xs "copy_memory_safe (finsert l s) m''"] by auto
+              using those_map_some_some[of xs "copy_safe (finsert l s) m''"] by auto
           qed
           ultimately show ?thesis using array(1)
             by (auto simp add: case_memory_def)
@@ -1877,11 +1877,11 @@ proof -
 qed
 
 lemma copy_memory_safe_subset_same:
-  assumes "copy_memory_safe s m l = Some x"
+  assumes "copy_safe s m l = Some x"
     and "s' |\<subseteq>| s"
-  shows "copy_memory_safe s' m l = Some x"
+  shows "copy_safe s' m l = Some x"
   using assms
-proof (induction arbitrary: s x rule:copy_memory_safe.induct)
+proof (induction arbitrary: s x rule:copy_safe.induct)
   case (1 s' m l)
   show ?case
     apply (auto split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)
@@ -1891,18 +1891,18 @@ proof (induction arbitrary: s x rule:copy_memory_safe.induct)
     apply (case_tac "a") apply auto
     using 1 apply (auto split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
     using 1(1)[of _ _ "finsert l s"] 1(2) 1(3)
-    apply (auto simp del: copy_memory_safe.simps split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
+    apply (auto simp del: copy_safe.simps split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
     by (smt (verit) "1.IH" bind_eq_Some_conv comp_apply data.copy_memory_safe_cases finsert_mono mdata.distinct(1)
         mdata.inject(2) option.inject those_map_eq those_map_none)
 qed
 
 lemma copy_memory_safe_some_same:             
   assumes "m $ l1 = m $ l2"
-      and "copy_memory_safe s1 m l1 = Some cd1"
-      and "copy_memory_safe s2 m l2 = Some cd2"
+      and "copy_safe s1 m l1 = Some cd1"
+      and "copy_safe s2 m l2 = Some cd2"
     shows "cd1 = cd2"
   using assms
-proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_memory_safe.induct)
+proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_safe.induct)
   case (1 s1 m l1)
   from 1(3)
   show ?case
@@ -1922,8 +1922,8 @@ proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_memory_safe.induct)
     then have
       IH:"\<And>x cd1 s2 l2 cd2.
         x \<in> set xs1
-        \<Longrightarrow> copy_memory_safe (finsert l1 s1) m x = Some cd1
-        \<Longrightarrow> copy_memory_safe s2 m l2 = Some cd2
+        \<Longrightarrow> copy_safe (finsert l1 s1) m x = Some cd1
+        \<Longrightarrow> copy_safe s2 m l2 = Some cd2
         \<Longrightarrow> m $ x = m $ l2
         \<Longrightarrow> cd1 = cd2"
       using 1(1) by blast
@@ -1936,22 +1936,22 @@ proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_memory_safe.induct)
       case array2: (array xs2 as2)
       then have "xs1 = xs2" using 1(2) array1(2) by simp
       moreover have
-        "those (map (copy_memory_safe (finsert l1 s1) m) xs1)
-         = those (map (copy_memory_safe (finsert l2 s2) m) xs1)"
+        "those (map (copy_safe (finsert l1 s1) m) xs1)
+         = those (map (copy_safe (finsert l2 s2) m) xs1)"
       proof (rule those_map_eq)
-        show "\<forall>x\<in>set xs1. \<forall>y. copy_memory_safe (finsert l1 s1) m x = Some y
-          \<longrightarrow> copy_memory_safe (finsert l2 s2) m x = Some y"
+        show "\<forall>x\<in>set xs1. \<forall>y. copy_safe (finsert l1 s1) m x = Some y
+          \<longrightarrow> copy_safe (finsert l2 s2) m x = Some y"
         proof (rule, rule, rule)
           fix x y
           assume "x \<in> set xs1"
-             and "copy_memory_safe (finsert l1 s1) m x = Some y"
-          moreover obtain cd where "copy_memory_safe (finsert l2 s2) m x = Some cd" 
+             and "copy_safe (finsert l1 s1) m x = Some y"
+          moreover obtain cd where "copy_safe (finsert l2 s2) m x = Some cd" 
             using those_map_none[OF array2(3)] \<open>xs1 = xs2\<close> \<open>x \<in> set xs1\<close> by auto
-          ultimately show "copy_memory_safe (finsert l2 s2) m x = Some y"
+          ultimately show "copy_safe (finsert l2 s2) m x = Some y"
             using IH[of x y "(finsert l2 s2)" x] by auto
         qed
       next
-        show "\<forall>x\<in>set xs1. copy_memory_safe (finsert l1 s1) m x \<noteq> None"
+        show "\<forall>x\<in>set xs1. copy_safe (finsert l1 s1) m x \<noteq> None"
           using those_map_none[OF array1(3)] by blast
       qed
       ultimately have "Array as1 = Array as2" using array1(3) array2(3) by simp
@@ -1962,17 +1962,17 @@ qed
 
 lemma copy_memory_safe_prefix:
   assumes "prefix m m'"
-      and "copy_memory_safe s m l = Some c"
-    shows "copy_memory_safe s m' l = Some c"
+      and "copy_safe s m l = Some c"
+    shows "copy_safe s m' l = Some c"
 proof -
-  have "\<forall>m' c. prefix m m' \<and> copy_memory_safe s m l = Some c
-        \<longrightarrow> copy_memory_safe s m' l = Some c" (is "?PROP m s l")
-  proof (induction rule:copy_memory_safe.induct [where ?P="\<lambda>s m l. ?PROP m s l"])
+  have "\<forall>m' c. prefix m m' \<and> copy_safe s m l = Some c
+        \<longrightarrow> copy_safe s m' l = Some c" (is "?PROP m s l")
+  proof (induction rule:copy_safe.induct [where ?P="\<lambda>s m l. ?PROP m s l"])
     case (1 s m l)
     show ?case
     proof (rule allI, rule allI, rule impI, erule conjE)
       fix m' c
-      assume *: "prefix m m'" and **: "copy_memory_safe s m l = Some c"
+      assume *: "prefix m m'" and **: "copy_safe s m l = Some c"
       then have "l < length m" using nth_safe_length[of m l]
         by (auto split:option.split_asm if_split_asm simp add:case_memory_def)
       then have ***: "m'$l = m $ l" using * unfolding prefix_def
@@ -1986,10 +1986,10 @@ proof -
         | xs'
         where "\<not> l |\<in>| s"
           and "m $ l = Some (mdata.Array xs')"
-          and "Some c = those (map (copy_memory_safe (finsert l s) m) xs') \<bind> Some \<circ> Array"
+          and "Some c = those (map (copy_safe (finsert l s) m) xs') \<bind> Some \<circ> Array"
         using that
         by (auto split:option.split_asm mdata.split_asm if_split_asm simp add:case_memory_def)
-      then show "copy_memory_safe s m' l = Some c"
+      then show "copy_safe s m' l = Some c"
       proof cases
         case 1
         then show ?thesis using ***
@@ -1998,17 +1998,17 @@ proof -
         case 2
         then obtain ar
           where "c = Array ar"
-            and "those (map (copy_memory_safe (finsert l s) m) xs') = Some ar"
+            and "those (map (copy_safe (finsert l s) m) xs') = Some ar"
           by (smt (verit, ccfv_SIG) bind_eq_Some_conv comp_apply option.inject)
-        then have "\<forall>x\<in>set xs'. copy_memory_safe (finsert l s) m x \<noteq> None"
+        then have "\<forall>x\<in>set xs'. copy_safe (finsert l s) m x \<noteq> None"
           using those_map_none by blast
         moreover from 1[OF 2(1) 2(2)] have
-          IH: "\<forall>x \<in> set xs'. (\<forall>c. copy_memory_safe (finsert l s) m x = Some c
-          \<longrightarrow> copy_memory_safe (finsert l s) m' x = Some c)"
+          IH: "\<forall>x \<in> set xs'. (\<forall>c. copy_safe (finsert l s) m x = Some c
+          \<longrightarrow> copy_safe (finsert l s) m' x = Some c)"
           using * by blast
         ultimately have
-          "those (map (copy_memory_safe (finsert l s) m) xs')
-          = those (map (copy_memory_safe (finsert l s) m') xs')"
+          "those (map (copy_safe (finsert l s) m) xs')
+          = those (map (copy_safe (finsert l s) m') xs')"
           using those_map_eq by blast
         moreover have "m' $ l = Some (mdata.Array xs')" using *** 2(2) by auto
         ultimately show ?thesis using 2 by (auto simp add:case_memory_def)
@@ -2021,19 +2021,19 @@ qed
 lemma mlookup_copy_memory_safe:
   assumes "mlookup m' xs l = Some x"
       and "m' $ x = Some (mdata.Value v)"
-      and "copy_memory_safe s m' x = Some a"
+      and "copy_safe s m' x = Some a"
     shows "a = Value v"
   using assms by (auto simp add: case_memory_def split:if_split_asm)
 
 lemma mlookup_copy_memory_safe_obtain:
   assumes "mlookup m0 (i#is) l1 = Some l1'"
-      and "copy_memory_safe s m0 l1 = Some cd1"
+      and "copy_safe s m0 l1 = Some cd1"
   obtains ls i' l'' cd'
   where "to_nat i = Some i'"
     and "ls $ i' = Some l''"
     and "mlookup m0 is l'' = Some l1'"
     and "m0 $ l1 = Some (mdata.Array ls)"
-    and "copy_memory_safe (finsert l1 s) m0 l'' = Some cd'"
+    and "copy_safe (finsert l1 s) m0 l'' = Some cd'"
 proof -
   from assms obtain ls i' l''
     where *: "m0 $ l1 = Some (mdata.Array ls)" 
@@ -2043,32 +2043,32 @@ proof -
     using mlookup_obtain_nempty2 by blast
   moreover from assms *  `to_nat i = Some i'` `ls $ i' = Some l''`
   obtain cd'
-    where cd'_def: "copy_memory_safe (finsert l1 s) m0 l'' = Some cd'"
-    using those_map_some_nth[of "copy_memory_safe (finsert l1 s) m0" ls _ i' l'']
-    by (case_tac "those (map (copy_memory_safe (finsert l1 s) m0) ls)",
+    where cd'_def: "copy_safe (finsert l1 s) m0 l'' = Some cd'"
+    using those_map_some_nth[of "copy_safe (finsert l1 s) m0" ls _ i' l'']
+    by (case_tac "those (map (copy_safe (finsert l1 s) m0) ls)",
         auto simp add:case_memory_def split:if_split_asm)
   ultimately show ?thesis using that by simp
 qed
 
-definition "copy_memory = copy_memory_safe {||}"
+definition "copy = copy_safe {||}"
 
 lemma copy_memory_some_same:
-  assumes "copy_memory_safe s m l = Some x"
-  shows "copy_memory m l = Some x"
-  using assms copy_memory_safe_subset_same unfolding copy_memory_def by blast
+  assumes "copy_safe s m l = Some x"
+  shows "copy m l = Some x"
+  using assms copy_memory_safe_subset_same unfolding copy_def by blast
 
 lemma copy_memory_append:
   assumes "prefix m m'"
-      and "copy_memory m l = Some c"
-    shows "copy_memory m' l = Some c"
-  using assms copy_memory_safe_prefix unfolding copy_memory_def
+      and "copy m l = Some c"
+    shows "copy m' l = Some c"
+  using assms copy_memory_safe_prefix unfolding copy_def
   by blast
 
 section \<open>Copy Memory and Memory Locations\<close>
 
 lemma locs_safe_copy_memory_safe:
   assumes "locs_safe s m l = Some L"
-    shows "\<exists>x. copy_memory_safe s m l = Some x"
+    shows "\<exists>x. copy_safe s m l = Some x"
   using assms
 proof (induction arbitrary: L rule:locs_safe.induct)
   case (1 s m l)
@@ -2078,13 +2078,13 @@ proof (induction arbitrary: L rule:locs_safe.induct)
     then show ?thesis by (auto simp add:case_memory_def)
   next
     case (2 xs)
-    moreover have "\<exists>x. those (map (copy_memory_safe (finsert l s) m) xs) \<bind> Some \<circ> Array = Some x"
+    moreover have "\<exists>x. those (map (copy_safe (finsert l s) m) xs) \<bind> Some \<circ> Array = Some x"
     proof -
       from 2(3) have "\<forall>x \<in> set xs. \<exists>y. locs_safe (finsert l s) m x = Some y"
         by (metis fold_some_subs)
-      then have "\<forall>x \<in> set xs. \<exists>y. copy_memory_safe (finsert l s) m x = Some y"
+      then have "\<forall>x \<in> set xs. \<exists>y. copy_safe (finsert l s) m x = Some y"
         using 1(1)[OF 2(1,2)] by blast
-      then obtain z where "those (map (copy_memory_safe (finsert l s) m) xs) = Some z"
+      then obtain z where "those (map (copy_safe (finsert l s) m) xs) = Some z"
         by (metis not_Some_eq those_map_none_none)
       then show ?thesis by simp
     qed
@@ -2093,12 +2093,12 @@ proof (induction arbitrary: L rule:locs_safe.induct)
 qed
 
 lemma copy_memory_safe_locs_safe:
-  assumes "copy_memory_safe s m l = Some cd"
+  assumes "copy_safe s m l = Some cd"
       and "locs_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "copy_memory_safe s m' l = Some cd"
+    shows "copy_safe s m' l = Some cd"
   using assms
-proof (induction arbitrary: cd L rule: copy_memory_safe.induct)
+proof (induction arbitrary: cd L rule: copy_safe.induct)
   case (1 s m' l)
   from 1(2) show ?case
   proof (cases rule: copy_memory_safe_cases)
@@ -2110,16 +2110,16 @@ proof (induction arbitrary: cd L rule: copy_memory_safe.induct)
       apply (auto simp add:case_memory_def)
       using "1.prems"(2) data.locs_safe_subs by blast
     then have *: "m' $ l = Some (mdata.Array v)" using array(2) 1(4) by simp
-    moreover have "those (map (copy_memory_safe (finsert l s) m') v)
-                  = those (map (copy_memory_safe (finsert l s) m) v)"
+    moreover have "those (map (copy_safe (finsert l s) m') v)
+                  = those (map (copy_safe (finsert l s) m) v)"
     proof -
-      have "\<forall>x \<in> set v. copy_memory_safe (finsert l s) m' x = copy_memory_safe (finsert l s) m x"
+      have "\<forall>x \<in> set v. copy_safe (finsert l s) m' x = copy_safe (finsert l s) m x"
       proof
         fix x assume "x \<in> set v"
         moreover from array(3)
-        obtain xx where "those (map (copy_memory_safe (finsert l s) m) v) = Some xx"
-          by (cases "those (map (copy_memory_safe (finsert l s) m) v)", auto)
-        then obtain c where "copy_memory_safe (finsert l s) m x = Some c"
+        obtain xx where "those (map (copy_safe (finsert l s) m) v) = Some xx"
+          by (cases "those (map (copy_safe (finsert l s) m) v)", auto)
+        then obtain c where "copy_safe (finsert l s) m x = Some c"
           by (meson `x \<in> set v` not_None_eq those_map_none)
         moreover from array have
           **: "fold
@@ -2131,7 +2131,7 @@ proof (induction arbitrary: cd L rule: copy_memory_safe.induct)
         then obtain L' where "locs_safe (finsert l s) m x = Some L'" and "L' |\<subseteq>| L"
           using fold_some_subs[OF **] `x \<in> set v` by auto
         moreover from `L' |\<subseteq>| L` have "\<forall>l'|\<in>|L'. m' $ l' = m $ l'" using 1(4) by blast
-        ultimately show "copy_memory_safe (finsert l s) m' x = copy_memory_safe (finsert l s) m x"
+        ultimately show "copy_safe (finsert l s) m' x = copy_safe (finsert l s) m x"
           using 1(1)[OF array(1) *] "1.prems"(3) by auto
       qed
       then show ?thesis
@@ -2142,25 +2142,25 @@ proof (induction arbitrary: cd L rule: copy_memory_safe.induct)
 qed
 
 lemma copy_memory_locs:
-  assumes "copy_memory m l = Some cd"
+  assumes "copy m l = Some cd"
       and "locs m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "copy_memory m' l = Some cd"
-  using assms copy_memory_safe_locs_safe unfolding copy_memory_def locs_def by blast
+    shows "copy m' l = Some cd"
+  using assms copy_memory_safe_locs_safe unfolding copy_def locs_def by blast
 
 lemma copy_memory_safe_locs_safe_same:
-  assumes "copy_memory_safe s m1 l = Some x"
+  assumes "copy_safe s m1 l = Some x"
       and "locs_safe s m1 l = Some L"
       and "\<forall>l |\<in>| s' - s. l |\<notin>| L"
-  shows "copy_memory_safe s' m1 l = Some x"
+  shows "copy_safe s' m1 l = Some x"
   using locs_safe_nin_same[OF assms(2,3)] assms(1)
   by (metis copy_memory_some_same locs_safe_copy_memory_safe)
 
 lemma locs_copy_memory_some:
-  assumes "copy_memory_safe s m0 l0 = Some cd0"
+  assumes "copy_safe s m0 l0 = Some cd0"
     shows "\<exists>L. locs_safe s m0 l0 = Some L"
   using assms
-proof (induction arbitrary: cd0 rule:copy_memory_safe.induct)
+proof (induction arbitrary: cd0 rule:copy_safe.induct)
   case (1 s m l)
   from 1(2) show ?case
   proof (cases rule:copy_memory_safe_cases)
@@ -2172,7 +2172,7 @@ proof (induction arbitrary: cd0 rule:copy_memory_safe.induct)
     proof
       fix x
       assume "x \<in> set xs"
-      moreover obtain cd where "copy_memory_safe (finsert l s) m x = Some cd"
+      moreover obtain cd where "copy_safe (finsert l s) m x = Some cd"
         by (meson array(3) calculation set_nth_some those_map_some_nth)
       ultimately show "\<exists>L. locs_safe (finsert l s) m x = Some L" using 1(1)
         by (meson array(1,2))
@@ -2193,8 +2193,8 @@ lemma copy_memory_safe_locs_safe_subs:
     and "l2 \<in> set ls"
     and "mlookup m is2 l1 = Some l1'"
     and "locs_safe s m l1 = Some L1"
-    and "copy_memory_safe s m l1 = Some cd"
-  shows "\<exists>x y. copy_memory_safe s m l2 = Some x \<and> locs_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
+    and "copy_safe s m l1 = Some cd"
+  shows "\<exists>x y. copy_safe s m l2 = Some x \<and> locs_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
 proof -
   from assms(3,4) have "l1' |\<in>| L1" using locs_safe_mlookup by blast
   then obtain L1'
@@ -2299,15 +2299,15 @@ lemma update_some:
       locs_safe s2 m0 l2 = Some L2 \<and>
       (\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l) \<and>
       (\<forall>l |\<in>| L2. m1 $ l = m0 $ l) \<and>
-      copy_memory_safe s m0 l1 = Some cd1 \<and>
-      copy_memory_safe s2 m0 l2 = Some cd2 \<and>
+      copy_safe s m0 l1 = Some cd1 \<and>
+      copy_safe s2 m0 l2 = Some cd2 \<and>
       s |\<inter>| L2 = {||} \<and>
       locations m0 is1 l1 = Some L3 \<and>
       L3 |\<inter>| L2 = {||} \<and>
       l1' |\<notin>| L2 \<and>
       check m0 L1
-    \<longrightarrow> (\<exists>x. copy_memory_safe s m1 l1 = Some x)" (is "?P s m1 l1")
-proof (induction rule: copy_memory_safe.induct[where ?P = ?P])
+    \<longrightarrow> (\<exists>x. copy_safe s m1 l1 = Some x)" (is "?P s m1 l1")
+proof (induction rule: copy_safe.induct[where ?P = ?P])
   case IH: (1 s m1 l1)
   show ?case
   proof (rule allI, rule allI, rule allI, rule allI, rule impI, (erule conjE)+)
@@ -2319,15 +2319,15 @@ proof (induction rule: copy_memory_safe.induct[where ?P = ?P])
        and 6: "locs_safe s2 m0 l2 = Some L2"
        and 7: "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
        and 8: "\<forall>l|\<in>|L2. m1 $ l = m0 $ l"
-       and 9: "copy_memory_safe s m0 l1 = Some cd1"
-       and 10: "copy_memory_safe s2 m0 l2 = Some cd2"
+       and 9: "copy_safe s m0 l1 = Some cd1"
+       and 10: "copy_safe s2 m0 l2 = Some cd2"
        and 11: "s |\<inter>| L2 = {||}"
        and 12: "locations m0 is1 l1 = Some L3"
        and 13: "L3 |\<inter>| L2 = {||}"
        and 14: "l1' |\<notin>| L2"
        and 15: "check m0 L1"
     from 9 have "l1 |\<notin>| s" by auto
-    show "\<exists>x. copy_memory_safe s m1 l1 = Some x"
+    show "\<exists>x. copy_safe s m1 l1 = Some x"
     proof (cases "m1$l1")
       case None
       show ?thesis
@@ -2355,25 +2355,25 @@ proof (induction rule: copy_memory_safe.induct[where ?P = ?P])
         then show ?thesis using Some `l1 |\<notin>| s` by (simp add:case_memory_def)
       next
         case (Array ls)
-        have *: "\<forall>l \<in> set ls. \<exists>x'. copy_memory_safe (finsert l1 s) m1 l = Some x'"
+        have *: "\<forall>l \<in> set ls. \<exists>x'. copy_safe (finsert l1 s) m1 l = Some x'"
         proof
           fix l assume "l \<in> set ls"
           then obtain i where l_def: "ls $ i = Some l" using set_nth_some by fast
-          then show "\<exists>x'. copy_memory_safe (finsert l1 s) m1 l = Some x'"
+          then show "\<exists>x'. copy_safe (finsert l1 s) m1 l = Some x'"
           proof (cases "is1 = []")
             case True
             then have "m1$l1 = m0$l2" using 1 3 by simp
             then have "m0$l2 = Some (mdata.Array ls)" using Some Array by simp
             then obtain x y
-              where "copy_memory_safe s2 m0 l = Some x"
+              where "copy_safe s2 m0 l = Some x"
                 and "locs_safe s2 m0 l = Some y"
                 and "y |\<subseteq>| L2"
               using \<open>l \<in> set ls\<close> 6 10 copy_memory_safe_locs_safe_subs mlookup.simps(1) by blast
-            then have "copy_memory_safe s2 m1 l = Some x" and "locs_safe s2 m1 l = Some y"
+            then have "copy_safe s2 m1 l = Some x" and "locs_safe s2 m1 l = Some y"
               using 8 copy_memory_safe_locs_safe[of s2 m0 l x y m1]
                 locs_safe_same[of s2 m0 l y m1] by blast+  
             moreover have "l1 |\<notin>| L2" using 14 1 True by simp
-            ultimately have "copy_memory_safe (finsert l1 s) m1 l = Some x"
+            ultimately have "copy_safe (finsert l1 s) m1 l = Some x"
               using 11 `y |\<subseteq>| L2` copy_memory_safe_locs_safe_same[where ?s' = "finsert l1 s"]
               by blast
             then show ?thesis by simp
@@ -2409,10 +2409,10 @@ proof (induction rule: copy_memory_safe.induct[where ?P = ?P])
                   and "L1'' |\<subseteq>| L1"
                 using fold_some_subs[of "locs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
                 by blast
-              moreover from 9 obtain cd1' where "copy_memory_safe (finsert l1 s) m0 l = Some cd1'"
+              moreover from 9 obtain cd1' where "copy_safe (finsert l1 s) m0 l = Some cd1'"
                 using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s`
                 apply (auto simp add:case_memory_def)
-                using those_map_none[of "copy_memory_safe (finsert l1 s) m0"] `l \<in> set ls` by force
+                using those_map_none[of "copy_safe (finsert l1 s) m0"] `l \<in> set ls` by force
               moreover have "locs_safe (finsert l1 s) m0 l1' = Some L1'" using 5 \<open>l1 |\<notin>| L1'\<close>
                 by (smt (verit, best) finsertE fminusD1 fminusD2 locs_safe_nin_same)
               moreover have "l1 |\<notin>| s" using 9 by auto
@@ -2542,16 +2542,16 @@ lemma update_some_obtains_copy:
   and "locs_safe s1 m0 l2 = Some L2"
   and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
   and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
-  and "copy_memory_safe s0 m0 l1 = Some cd1"
-  and "copy_memory_safe s1 m0 l2 = Some cd2"
+  and "copy_safe s0 m0 l1 = Some cd1"
+  and "copy_safe s1 m0 l2 = Some cd2"
   and "s0 |\<inter>| L2 = {||}"
   and "locations m0 is1 l1 = Some L3"
   and "L3 |\<inter>| L2 = {||}"
   and "l1' |\<notin>| L2"
   and "check m0 L1"
-obtains x where "copy_memory_safe s0 m1 l1 = Some x"
+obtains x where "copy_safe s0 m1 l1 = Some x"
   using update_some[of m0 l1 l1' m1 l2 s0 L1' s1 L2 cd2] assms
-  unfolding locs_def copy_memory_def 
+  unfolding locs_def copy_def 
   by blast
 
 lemma update_some_obtains_locs:
@@ -2569,11 +2569,11 @@ lemma update_some_obtains_locs:
   and "check m0 L1"
 obtains L where "locs_safe s0 m1 l1 = Some L"
 proof -
-  from assms(3) obtain cd1 where "copy_memory_safe s0 m0 l1 = Some cd1"
+  from assms(3) obtain cd1 where "copy_safe s0 m0 l1 = Some cd1"
     using locs_safe_copy_memory_safe by blast
-  moreover from assms(5) obtain cd2 where "copy_memory_safe s1 m0 l2 = Some cd2"
+  moreover from assms(5) obtain cd2 where "copy_safe s1 m0 l2 = Some cd2"
     using locs_safe_copy_memory_safe by blast
-  ultimately obtain x where "copy_memory_safe s0 m1 l1 = Some x"
+  ultimately obtain x where "copy_safe s0 m1 l1 = Some x"
     using update_some_obtains_copy[OF assms(1,2,3,4,5,6,7) _ _ assms(8, 9,10,11,12)]
     by blast
   then show ?thesis using locs_copy_memory_some that by blast
@@ -3187,8 +3187,8 @@ datatype 'v adata =
 abbreviation case_adata where "case_adata cd vf af \<equiv> adata.case_adata vf af cd"
 
 global_interpretation a_data: data adata.Value adata.Array
-  defines acopy_memory_safe = a_data.copy_memory_safe
-      and acopy_memory = a_data.copy_memory
+  defines acopy_safe = a_data.copy_safe
+      and acopy = a_data.copy
       and alocs_safe = a_data.locs_safe
       and alocs = a_data.locs
       and acheck = a_data.check
@@ -3301,9 +3301,9 @@ qed
 section \<open>Array Lookup and Memory Copy\<close>
 
 lemma copy_memory_alookup_obtains:
-  assumes "acopy_memory_safe s m l = Some cd"
+  assumes "acopy_safe s m l = Some cd"
       and "mlookup m xs l = Some l'"
-  shows "\<exists>cd'. acopy_memory_safe s m l' = Some cd' \<and> alookup xs cd = Some cd'"
+  shows "\<exists>cd'. acopy_safe s m l' = Some cd' \<and> alookup xs cd = Some cd'"
   using assms
 proof (induction xs arbitrary: l cd)
   case Nil
@@ -3322,13 +3322,13 @@ next
     apply (case_tac "x2a $ aaa") by auto
 
   from Cons(2) *
-    have *: "Some cd = those (map (acopy_memory_safe (finsert l s) m) xs') \<bind> Some \<circ> adata.Array"  
+    have *: "Some cd = those (map (acopy_safe (finsert l s) m) xs') \<bind> Some \<circ> adata.Array"  
     using a_data.copy_memory_safe_cases[of s m l cd] by fastforce
   then obtain xs''
-    where xx1:"those (map (acopy_memory_safe (finsert l s) m) xs') = Some xs''" by fastforce
+    where xx1:"those (map (acopy_safe (finsert l s) m) xs') = Some xs''" by fastforce
   then have a1: "cd = adata.Array xs''" using * by simp
 
-  moreover obtain cd' where a3: "acopy_memory_safe s m l'' = Some cd'"
+  moreover obtain cd' where a3: "acopy_safe s m l'' = Some cd'"
     by (smt (verit, ccfv_threshold) Option.bind_cong bind.bind_lunit bind_rzero
         a_data.copy_memory_safe_subset_same fsubset_finsertI option.discI
         those_map_some_nth x1 xx1)
@@ -3336,7 +3336,7 @@ next
     by (smt (verit, ccfv_SIG) a3 a_data.copy_memory_some_same bind_eq_Some_conv
           local.x1 those_map_nth those_map_some_nth xx1)
   ultimately obtain cd''
-    where "acopy_memory_safe s m l' = Some cd'' \<and> alookup xs cd' = Some cd''"
+    where "acopy_safe s m l' = Some cd'' \<and> alookup xs cd' = Some cd''"
     using Cons(1) ** by auto
   moreover have "alookup xs cd' = alookup (a # xs) cd"
     by (simp add: a1 a2)
@@ -3346,7 +3346,7 @@ qed
 
 lemma mlookup_copy_alookup:
   assumes "mlookup m0 is l1 = Some l1'"
-    and "acopy_memory_safe s m0 l1 = Some cd1"
+    and "acopy_safe s m0 l1 = Some cd1"
 shows "\<exists>cd'. alookup is cd1 = Some cd'"
   using assms
 proof (induction "is"arbitrary:s l1 cd1)
@@ -3359,7 +3359,7 @@ next
       and "to_nat i = Some i'"
       and "ls $ i' = Some l''"
       and "mlookup m0 is' l'' = Some l1'"
-      and cd'_def: "acopy_memory_safe (finsert l1 s) m0 l'' = Some cd'"
+      and cd'_def: "acopy_safe (finsert l1 s) m0 l'' = Some cd'"
     using a_data.mlookup_copy_memory_safe_obtain by metis
   then obtain cd''
     where "alookup is' cd' = Some cd''" using Cons(1)[of l''] by blast
@@ -3629,13 +3629,13 @@ lemma separate_memory:
   assumes "mlookup m xs1 l1 = Some l1'"
   and  "mlookup m xs2 l2 = Some l2'"
   and "m $ l1' = m $ l2'"
-  and "acopy_memory_safe s1 m l1 = Some cd1"
-  and "acopy_memory_safe s2 m l2 = Some cd2"
+  and "acopy_safe s1 m l1 = Some cd1"
+  and "acopy_safe s2 m l2 = Some cd2"
 shows "alookup xs2 cd2 \<bind> (\<lambda>cd. aupdate xs1 cd cd1) = Some cd1"
 proof -
   from assms obtain cd1' cd2'
-    where *: "acopy_memory_safe s1 m l1' = Some cd1'" and "alookup xs1 cd1 = Some cd1'"
-      and **: "acopy_memory_safe s2 m l2' = Some cd2'" and "alookup xs2 cd2 = Some cd2'"
+    where *: "acopy_safe s1 m l1' = Some cd1'" and "alookup xs1 cd1 = Some cd1'"
+      and **: "acopy_safe s2 m l2' = Some cd2'" and "alookup xs2 cd2 = Some cd2'"
       using
         copy_memory_alookup_obtains[OF assms(4,1)]
         copy_memory_alookup_obtains[OF assms(5,2)]
@@ -3645,14 +3645,14 @@ proof -
 qed
 
 lemma split_memory:
-  assumes "acopy_memory_safe s1 m l = Some cd"
+  assumes "acopy_safe s1 m l = Some cd"
       and "mlookup m xs l = Some l'"
-    shows "acopy_memory_safe s1 m l' \<bind> (\<lambda>cd'. aupdate xs cd' cd) = Some cd"
+    shows "acopy_safe s1 m l' \<bind> (\<lambda>cd'. aupdate xs cd' cd) = Some cd"
   using assms copy_memory_alookup_obtains separate_memory by fastforce
 
 lemma mlookup_copy_update:
   assumes "mlookup m0 is l1 = Some l1'"
-      and "acopy_memory_safe s m0 l1 = Some cd1"
+      and "acopy_safe s m0 l1 = Some cd1"
     shows "\<exists>cd'.
             aupdate is cd cd1 = Some cd' \<and>
               (is \<noteq> [] \<longrightarrow>
@@ -3669,7 +3669,7 @@ next
       and **: "to_nat i = Some i'"
       and "ls $ i' = Some l''"
       and "mlookup m0 is' l'' = Some l1'"
-      and cd'_def: "acopy_memory_safe (finsert l1 s) m0 l'' = Some cd'"
+      and cd'_def: "acopy_safe (finsert l1 s) m0 l'' = Some cd'"
     using a_data.mlookup_copy_memory_safe_obtain by metis
 
   then obtain cd''
@@ -3690,9 +3690,9 @@ lemma copy_memory_safe_lookup_update_value:
       and "alocs_safe s m0 l1 = Some L1"
       and "alocs_safe s m0 l1' = Some L1'"
       and "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
-      and "acopy_memory_safe s m0 l1 = Some cd0"
+      and "acopy_safe s m0 l1 = Some cd0"
       and "acheck m0 L1"
-      and "acopy_memory_safe s m1 l1 = Some cd1"
+      and "acopy_safe s m1 l1 = Some cd1"
     shows "aupdate is1 (Value v) cd0 = Some cd1"
   using assms
 proof (induction is1 arbitrary:l1 cd0 cd1 L1 s)
@@ -3710,20 +3710,20 @@ next
         nth_list_update_neq nth_safe_length nth_safe_some)
   moreover from Cons(5) have "l1 |\<notin>| s" by auto
   ultimately have
-    *: "Some cd1 = those (map (acopy_memory_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
+    *: "Some cd1 = those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
     using a_data.copy_memory_safe_cases[OF Cons(10)] by fastforce
   moreover obtain as
     where as_def: "aupdate (i # is1') (adata.Value v) cd0 = Some (adata.Array as)"
       and "length as = length ls"
     using mlookup_copy_update[OF Cons(2,8)] ls_def by fastforce
-  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_memory_safe (finsert l1 s) m1) ls) ! i"
+  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_safe (finsert l1 s) m1) ls) ! i"
   proof (rule, rule)
     fix i'
     assume "i' < length as"
     then have "i'<length ls" using \<open>length as = length ls\<close> by simp
     then have "(ls ! i') \<in> set ls"
       by simp
-    show "Some (as ! i') = map (acopy_memory_safe (finsert l1 s) m1) ls ! i'"
+    show "Some (as ! i') = map (acopy_safe (finsert l1 s) m1) ls ! i'"
     proof (cases "to_nat i = Some i'")
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
@@ -3752,21 +3752,21 @@ next
              nth_safe_some option.inject)
 
       from Cons(8) have
-        "those (map (acopy_memory_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd0"
+        "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd0"
         using \<open>l1 |\<notin>| s\<close> ls_def using True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
-        where cd1'_def: "acopy_memory_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
+        where cd1'_def: "acopy_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
         using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_copy_memory_safe
         by blast
 
       from Cons(10) have
-        "those (map (acopy_memory_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd1"
+        "those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> m1_ls True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd2'
-        where cd2'_def: "acopy_memory_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
-        using those_map_none[of "acopy_memory_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
+        where cd2'_def: "acopy_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
+        using those_map_none[of "acopy_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
         by fastforce
       thm Cons(1)
       moreover have "aupdate is1' (Value v) cd1' = Some cd2'"
@@ -3795,15 +3795,15 @@ next
         apply (cases cd0,auto)
         apply (case_tac "x2 $ i'",auto)
         apply (case_tac " aupdate is1' (adata.Value v) a",auto)
-        apply (case_tac "those (map (acopy_memory_safe (finsert l1 s) m0) ls)",auto)
+        apply (case_tac "those (map (acopy_safe (finsert l1 s) m0) ls)",auto)
         apply (case_tac "m0 $ (ls ! i')",auto)
         apply (case_tac "ab",auto)
         using \<open>i' < length as\<close> aupdate_obtain apply fastforce
         by (metis \<open>i' < length as\<close> cd1'_def length_list_update map_equality_iff
             nth_list_update_eq nth_safe_some option.inject those_some_map)
       moreover have
-        "map (acopy_memory_safe (finsert l1 s) m1) ls ! i'
-        = acopy_memory_safe (finsert l1 s) m1 (ls ! i')"
+        "map (acopy_safe (finsert l1 s) m1) ls ! i'
+        = acopy_safe (finsert l1 s) m1 (ls ! i')"
         by (simp add: \<open>i' < length ls\<close>)
       ultimately show ?thesis by simp
     next  
@@ -3817,17 +3817,17 @@ next
         apply (cases is1',auto simp add:case_memory_def)
         using mlookup_obtain_nempty2 by fastforce
       moreover from Cons(8) ls_def have
-        *: "those (map (acopy_memory_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd0"
+        *: "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd0"
         using \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
       moreover from * obtain aa
-        where aa_def: "those (map (acopy_memory_safe (finsert l1 s) m0) ls) = Some aa"
-        by (cases "those (map (acopy_memory_safe (finsert l1 s) m0) ls)", auto)
+        where aa_def: "those (map (acopy_safe (finsert l1 s) m0) ls) = Some aa"
+        by (cases "those (map (acopy_safe (finsert l1 s) m0) ls)", auto)
       moreover from aa_def have "length aa = length ls" by (metis length_map those_some_map)
-      then have "acopy_memory_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
-        using * those_map_nth[of "acopy_memory_safe (finsert l1 s) m0" ls aa i']
+      then have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
+        using * those_map_nth[of "acopy_safe (finsert l1 s) m0" ls aa i']
           aa_def `i' < length ls`
         by (auto simp add:nth_safe_def split:if_split_asm option.split_asm)
-      ultimately have "acopy_memory_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
+      ultimately have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
         using aupdate_nth_same[of i is1' "Value v" aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
@@ -3871,7 +3871,7 @@ next
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(7) by auto
       qed
-      ultimately have "acopy_memory_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
+      ultimately have "acopy_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
         using a_data.copy_memory_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
@@ -3888,10 +3888,10 @@ lemma copy_memory_safe_lookup_update:
       and "alocs_safe s2 m0 l2 = Some L2"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
-      and "acopy_memory_safe s m0 l1 = Some cd1"
-      and "acopy_memory_safe s2 m0 l2 = Some cd2"
+      and "acopy_safe s m0 l1 = Some cd1"
+      and "acopy_safe s2 m0 l2 = Some cd2"
       and "acheck m0 L1"
-      and "acopy_memory_safe s m1 l1 = Some cd"
+      and "acopy_safe s m1 l1 = Some cd"
     shows "alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1 cd cd1) = Some cd"
   using assms
 proof (induction is1 arbitrary:l1 cd cd1 L1 s)
@@ -3910,7 +3910,7 @@ proof (induction is1 arbitrary:l1 cd cd1 L1 s)
   moreover from Nil have "m1$l1 = m0$l2'" by simp
   then have "m1$l2' = m1$l1" using Nil a_data.locs_safe_mlookup by metis
   then have "m1 $ l1' = m1 $ l2'" by (metis bind.bind_lunit calculation(1) mlookup.simps(1))
-  moreover have "acopy_memory_safe s2 m1 l2 = Some cd2"
+  moreover have "acopy_safe s2 m1 l2 = Some cd2"
     using a_data.copy_memory_safe_locs_safe[OF Nil(10,6,8)] .
   ultimately show ?case using separate_memory[of m1 "[]" l1 l1' is2 l2 l2' s cd s2 cd2] by auto
 next
@@ -3924,7 +3924,7 @@ next
         a_data.locs_safe_in_subs)
   moreover from Cons(13) have "l1 |\<notin>| s" by auto
   ultimately have
-    *: "Some cd = those (map (acopy_memory_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
+    *: "Some cd = those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
     using a_data.copy_memory_safe_cases[OF Cons(13)] by fastforce
   moreover obtain as
     where as_def: "alookup is2 cd2
@@ -3940,14 +3940,14 @@ next
       using mlookup_copy_update[OF Cons(2,10)] ls_def by fastforce
     ultimately show ?thesis using that by simp
   qed
-  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_memory_safe (finsert l1 s) m1) ls) ! i"
+  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_safe (finsert l1 s) m1) ls) ! i"
   proof (rule, rule)
     fix i'
     assume "i' < length as"
     then have "i'<length ls" using \<open>length as = length ls\<close> by simp
     then have "(ls ! i') \<in> set ls"
       by simp
-    show "Some (as ! i') = map (acopy_memory_safe (finsert l1 s) m1) ls ! i'"
+    show "Some (as ! i') = map (acopy_safe (finsert l1 s) m1) ls ! i'"
     proof (cases "to_nat i = Some i'")
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
@@ -3977,21 +3977,21 @@ next
              nth_safe_some option.inject)
 
       from Cons(10) have
-        "those (map (acopy_memory_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd1"
+        "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> ls_def using True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
-        where cd1'_def: "acopy_memory_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
+        where cd1'_def: "acopy_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
         using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_copy_memory_safe
         by blast
 
       from Cons(13) have
-        "those (map (acopy_memory_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd"
+        "those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd"
         using \<open>l1 |\<notin>| s\<close> m1_ls True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd2'
-        where cd2'_def: "acopy_memory_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
-        using those_map_none[of "acopy_memory_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
+        where cd2'_def: "acopy_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
+        using those_map_none[of "acopy_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
         by fastforce
         
       moreover have "alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1' cd cd1') = Some cd2'"
@@ -4023,15 +4023,15 @@ next
         apply (cases cd1,auto)
         apply (case_tac "x2 $ i'",auto)
         apply (case_tac " aupdate is1' a aa",auto)
-        apply (case_tac "those (map (acopy_memory_safe (finsert l1 s) m0) ls)",auto)
+        apply (case_tac "those (map (acopy_safe (finsert l1 s) m0) ls)",auto)
         apply (case_tac "m0 $ (ls ! i')",auto)
         apply (case_tac "ac",auto)
         using \<open>i' < length as\<close> aupdate_obtain apply fastforce
         by (metis \<open>i' < length as\<close> cd1'_def length_list_update map_equality_iff
             nth_list_update_eq nth_safe_some option.inject those_some_map)
       moreover have
-        "map (acopy_memory_safe (finsert l1 s) m1) ls ! i'
-        = acopy_memory_safe (finsert l1 s) m1 (ls ! i')"
+        "map (acopy_safe (finsert l1 s) m1) ls ! i'
+        = acopy_safe (finsert l1 s) m1 (ls ! i')"
         by (metis L3_def True \<open>m0 $ l1 = Some (mdata.Array ls)\<close>
             locations_obtain mdata.inject(2) nth_map nth_safe_length option.inject)
       ultimately show ?thesis by simp
@@ -4046,20 +4046,20 @@ next
         apply (cases is1',auto simp add:case_memory_def)
         using mlookup_obtain_nempty2 by fastforce
       moreover from Cons(10) ls_def have
-        *: "those (map (acopy_memory_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd1"
+        *: "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
       moreover from * obtain aa
-        where aa_def: "those (map (acopy_memory_safe (finsert l1 s) m0) ls) = Some aa"
-        by (cases "those (map (acopy_memory_safe (finsert l1 s) m0) ls)", auto)
+        where aa_def: "those (map (acopy_safe (finsert l1 s) m0) ls) = Some aa"
+        by (cases "those (map (acopy_safe (finsert l1 s) m0) ls)", auto)
       moreover from aa_def have "length aa = length ls" by (metis length_map those_some_map)
-      then have "acopy_memory_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
-        using * those_map_nth[of "acopy_memory_safe (finsert l1 s) m0" ls aa i']
+      then have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
+        using * those_map_nth[of "acopy_safe (finsert l1 s) m0" ls aa i']
           aa_def `i' < length ls`
         by (auto simp add:nth_safe_def split:if_split_asm option.split_asm)
       moreover from Cons(3,11) obtain cd'
         where "alookup is2 cd2 = Some cd'"
         using mlookup_copy_alookup by blast
-      ultimately have "acopy_memory_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
+      ultimately have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
         using aupdate_nth_same[of i is1' cd' aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
@@ -4104,7 +4104,7 @@ next
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(8) by auto
       qed
-      ultimately have "acopy_memory_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
+      ultimately have "acopy_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
         using a_data.copy_memory_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
@@ -6152,7 +6152,7 @@ section \<open>Memory Init and Memory Copy\<close>
 theorem minit_acopy_memory_safe:
   assumes "\<forall>l \<ge> length m0. l < length (snd (minit cd m0)) \<longrightarrow> \<not> l |\<in>| s"
   shows "\<forall>mx. prefix (snd (minit cd m0)) mx
-        \<longrightarrow> acopy_memory_safe s mx (fst (minit cd m0)) = Some cd"
+        \<longrightarrow> acopy_safe s mx (fst (minit cd m0)) = Some cd"
   using assms
 proof (induction cd arbitrary: m0 s)
   case (Value x)
@@ -6171,28 +6171,28 @@ next
       by metis
     moreover have "\<not> fst (minit (Array ds) m0) |\<in>| s" using Array(2)
       by (metis less_Suc_eq_le minit_length_inc minit_length_suc nth_safe_length xs1)
-    ultimately have "acopy_memory_safe s
+    ultimately have "acopy_safe s
                       (snd (minit (adata.Array ds) m0))
                       (fst (minit (adata.Array ds) m0))
-                   = those (map (acopy_memory_safe
+                   = those (map (acopy_safe
                       (finsert (fst (minit (Array ds) m0)) s)
                       (snd (minit (Array ds) m0))) xs)
                      \<bind> Some \<circ> Array" by (simp add:case_memory_def)
-    moreover have "those (map (acopy_memory_safe
+    moreover have "those (map (acopy_safe
                     (finsert (fst (minit (Array ds) m0)) s)
                     (snd (minit (Array ds) m0))) xs)
                   = Some ds"
-    proof (rule take_all[where ?P = "\<lambda>xs ys. those (map (acopy_memory_safe
+    proof (rule take_all[where ?P = "\<lambda>xs ys. those (map (acopy_safe
                                     (finsert (fst (minit (Array ds) m0)) s)
                                     (snd (minit (Array ds) m0))) xs) = Some ys"])
-      show "\<forall>n \<le> length xs. those (map (acopy_memory_safe
+      show "\<forall>n \<le> length xs. those (map (acopy_safe
                   (finsert (fst (minit (Array ds) m0)) s)
                   (snd (minit (Array ds) m0))) (take n xs))
                 = Some (take n ds)"
       proof (rule allI, rule impI)
         fix n
         assume "n \<le> length xs"
-        then show "those (map (acopy_memory_safe
+        then show "those (map (acopy_safe
                 (finsert (fst (minit (Array ds) m0)) s)
                 (snd (minit (Array ds) m0))) (take n xs))
               = Some (take n ds)"
@@ -6207,13 +6207,13 @@ next
             apply (rule List.take_Suc_conv_app_nth)
             using \<open>n < length xs\<close> take_Suc_conv_app_nth xs2 by auto
           moreover have ***:
-            "acopy_memory_safe
+            "acopy_safe
               (finsert (fst (minit (Array ds) m0)) s)
               (snd (minit (Array ds) m0))
               (xs!n)
              = Some (ds!n)"
           proof -
-            have "acopy_memory_safe (finsert (fst (minit (Array ds) m0)) s)
+            have "acopy_safe (finsert (fst (minit (Array ds) m0)) s)
               (snd (minit (Array ds) m0))
               (fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
             = Some (ds!n)"
@@ -6237,12 +6237,12 @@ next
           qed
           moreover from \<open>n < length xs\<close> have "n \<le> length xs" by simp
           then have
-            "those (map (acopy_memory_safe (finsert (fst (minit (adata.Array ds) m0)) s)
+            "those (map (acopy_safe (finsert (fst (minit (adata.Array ds) m0)) s)
               (snd (minit (adata.Array ds) m0)))
               (take n xs))
              = Some (take n ds)" using Suc(1) xs2 by argo
           ultimately show
-            "those (map (acopy_memory_safe (finsert (fst (minit (adata.Array ds) m0)) s)
+            "those (map (acopy_safe (finsert (fst (minit (adata.Array ds) m0)) s)
               (snd (minit (adata.Array ds) m0)))
               (take (Suc n) xs))
              = Some (take (Suc n) ds)" using those_those \<open>n < length xs\<close>
@@ -6250,7 +6250,7 @@ next
         qed
       qed
     qed (rule xs2)
-    ultimately show "acopy_memory_safe s mx (fst (minit (adata.Array ds) m0)) = Some (adata.Array ds)"
+    ultimately show "acopy_safe s mx (fst (minit (adata.Array ds) m0)) = Some (adata.Array ds)"
       by (metis 1 bind.bind_lunit comp_apply a_data.copy_memory_safe_prefix)
   qed
 qed
@@ -6258,8 +6258,8 @@ qed
 corollary minit_copy:
   assumes "minit cd m0 = (l, m)"
       and "prefix m mx"
-    shows "acopy_memory mx l = Some cd"
-  using assms minit_acopy_memory_safe unfolding a_data.copy_memory_def
+    shows "acopy mx l = Some cd"
+  using assms minit_acopy_memory_safe unfolding a_data.copy_def
   by (metis fempty_iff fst_conv snd_conv)
 
 section \<open>Minit and Separation Check\<close>
