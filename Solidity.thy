@@ -803,6 +803,134 @@ begin
 
 end
 
+section \<open>Arrays\<close>
+
+definition array where "array i x = replicate i x"
+
+lemma length_array[simp]: "length (array x y) = x"
+  unfolding array_def
+  by simp
+
+
+lemma fold_map_minit_replicate_length:
+  assumes "fold_map Memory.minit (replicate n (adata.Value v)) m = (x1, x2)"
+    shows "length x1 = n"
+  using assms
+proof (induction n arbitrary: x1 m)
+  case 0
+  then show ?case by simp 
+next
+  case (Suc n)
+  from Suc.prems obtain x1a
+    where *: "fold_map Memory.minit (replicate n (adata.Value v)) (m @ [mdata.Value v]) = (x1a, x2)"
+      and **:"x1 = length m # x1a"
+    by (auto simp add: array_def length_append_def split:prod.split_asm)
+  then show ?case
+  proof (cases "n = 0")
+    case True
+    then show ?thesis using Suc.prems(1) by (auto split:prod.split_asm)
+  next
+    case False
+    then show ?thesis using * Suc by (auto simp add: length_append_def)
+  qed
+qed
+
+lemma fold_map_minit_replicate_value:
+  assumes "fold_map Memory.minit (replicate n (adata.Value (Uint 0))) m = (x1, x2)"
+      and "x < n"
+    shows "x1 ! x < length x2 \<and> (\<exists>ix. x2 ! (x1 ! x) = mdata.Value (Uint ix))"
+  using assms
+proof (induction n arbitrary: x1 m x)
+  case 0
+  then show ?case by simp
+next
+  case (Suc n)
+  from Suc.prems
+    obtain x1a
+      where *: "fold_map Memory.minit (replicate n (adata.Value (Uint 0))) (m @ [mdata.Value (Uint 0)]) = (x1a, x2)"
+        and **:"x1 = length m # x1a"
+      by (simp add: length_append_def split:prod.split_asm)
+  then show ?case
+  proof (cases "n = 0")
+    case True
+    then show ?thesis using Suc.prems(1,2) by (auto simp add: length_append_def)
+  next
+    case False
+    then show ?thesis
+    proof (cases "x = 0")
+      case True
+      moreover from False
+        have "(replicate n (adata.Value (Uint 0))) \<noteq> []" by auto
+      then have "sprefix (m @ [mdata.Value (Uint 0)]) x2"
+        using minit_fold_map_sprefix[of "(replicate n (adata.Value (Uint 0)))" " (m @ [mdata.Value (Uint 0)])"]
+        unfolding sprefix_def using * by simp
+      ultimately show ?thesis unfolding sprefix_def
+        using ** sprefix_def by (auto simp add: array_def length_append_def split:prod.split_asm)
+   next
+      case _: False
+      moreover have "x1a ! (x - 1) < length x2 \<and> (\<exists>ix. x2 ! (x1a ! (x - 1)) = mdata.Value (Uint ix))"
+        using Suc.IH[OF *] Suc.prems(2) False by simp
+      ultimately show ?thesis
+        using * Suc.prems(1) by (auto simp add: length_append_def)
+    qed
+  qed
+qed
+
+lemma minit_array_typing_value:
+  assumes "Memory.minit (adata.Array (array (unat si) (adata.Value (Uint 0)))) [] = (x1, x2)"
+    shows "x1<length x2 \<and> (\<exists>ma0. x2 ! x1 = mdata.Array ma0 \<and> (\<forall>i<length ma0. (ma0 ! i) < length x2 \<and> (\<exists>ix. x2 ! (ma0 ! i) = mdata.Value (Uint ix))))"
+proof -
+  from assms obtain x1a x2a
+    where *:"fold_map Memory.minit (replicate (unat si) (adata.Value (Uint 0))) [] = (x1a, x2a)"
+      and "x1 = length x2a"
+      and "x2 = x2a @ [mdata.Array x1a]"
+    by (simp add: array_def length_append_def split:prod.split_asm)
+  moreover have "(\<forall>i<length x1a. (x1a ! i) < length x2a \<and> (\<exists>ix. x2 ! (x1a ! i) = mdata.Value (Uint ix)))"
+  proof (rule allI, rule impI)
+    fix i assume "i < length x1a"
+    moreover have "length x1a = unat si" using fold_map_minit_replicate_length[OF *] by simp
+    ultimately show "(x1a ! i) < length x2a \<and> (\<exists>ix. x2 ! (x1a ! i) = mdata.Value (Uint ix))"
+      using fold_map_minit_replicate_value[OF *, of i]
+      by (simp add: \<open>x2 = x2a @ [mdata.Array x1a]\<close> nth_append_left)
+  qed
+  ultimately show ?thesis by auto
+qed
+
+lemma mupdate_array_typing_value:
+  assumes "state.Memory sa ! ml = mdata.Array ma0"
+      and "\<forall>i<length ma0. (ma0 ! i) < length (state.Memory sa) \<and> (\<exists>ix. state.Memory sa ! (ma0 ! i) = mdata.Value (Uint ix))"
+      and "mvalue_update [Uint xa] (ml, mdata.Value (Uint x), state.Memory sa) = Some yg"
+    shows "\<exists>ma0. yg ! ml = mdata.Array ma0
+          \<and> (\<forall>i<length ma0. (ma0 ! i) < length yg \<and> (\<exists>ix. yg ! (ma0 ! i) = mdata.Value (Uint ix)))"
+proof -
+  from assms have "ma0 ! unat xa \<noteq> ml"
+  proof -
+    from assms(1,2,3) obtain ix
+      where "(ma0 ! (unat xa)) < length (state.Memory sa)"
+        and "(state.Memory sa ! (ma0 ! (unat xa)) = mdata.Value (Uint ix))"
+      by (auto simp add: case_memory_def nth_safe_def split:if_split_asm)
+    then show ?thesis using assms(1) by auto
+  qed
+  then have "yg ! ml = mdata.Array ma0"
+    using assms(1,3)
+    by (auto simp add: case_memory_def nth_safe_def list_update_safe_def split:if_split_asm)
+  moreover have "\<forall>i<length ma0. (ma0 ! i) < length yg \<and> (\<exists>ix. yg ! (ma0 ! i) = mdata.Value (Uint ix))"
+  proof (rule allI, rule impI)
+    fix i assume "i < length ma0"
+    show "(ma0 ! i) < length yg \<and> (\<exists>ix. yg ! (ma0 ! i) = mdata.Value (Uint ix))"
+    proof (cases "ma0 ! i = ma0 ! unat xa")
+      case True
+      then show ?thesis using assms(1,3) 
+        by (auto simp add: case_memory_def nth_safe_def list_update_safe_def split:if_split_asm)
+    next
+      case False
+      then show ?thesis using \<open>i < length ma0\<close> assms(1,2,3) 
+        by (auto simp add: case_memory_def nth_safe_def list_update_safe_def split:if_split_asm)
+    qed
+  qed
+  ultimately show ?thesis by blast
+qed
+
 section \<open>Declarations\<close>
 (*
 Used in ML code
@@ -816,7 +944,7 @@ definition kinit::"('a::address valtype) kdata \<Rightarrow> id \<Rightarrow> ('
 definition init::"('a::address) valtype \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
   "init \<equiv> kinit \<circ> kdata.Value"
 
-definition minit::"('a::address valtype) sdata \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
+definition minit::"('a::address valtype) adata \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
   "minit c i \<equiv> update (\<lambda>s. let (l,m) = Memory.minit c (state.Memory s) in (Empty, s\<lparr>Stack := fmupd i (kdata.Memory l) (Stack s), Memory := m\<rparr>))"
 
 definition cinit::"('a::address valtype) call_data \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
@@ -828,8 +956,6 @@ datatype VType =
   TBool | TSint | TAddress | TBytes
 
 subsection \<open>Default values\<close>
-
-definition array where "array i x = replicate i x"
 
 definition mapping where "mapping x = (\<lambda>_. x)"
 
@@ -891,11 +1017,11 @@ subsection \<open>Calldata Variables\<close>
 datatype CType =
   TValue VType | TArray nat CType | DArray CType | TEnum "CType list"
 
-fun cdefault:: "CType \<Rightarrow> 'a::address valtype sdata" where
-   "cdefault (TValue t) = sdata.Value (default t)"
- | "cdefault (TArray l t) = sdata.Array (array l (cdefault t))"
- | "cdefault (DArray t) = sdata.Array []"
- | "cdefault (TEnum xs) = sdata.Array []"
+fun cdefault:: "CType \<Rightarrow> 'a::address valtype adata" where
+   "cdefault (TValue t) = adata.Value (default t)"
+ | "cdefault (TArray l t) = adata.Array (array l (cdefault t))"
+ | "cdefault (DArray t) = adata.Array []"
+ | "cdefault (TEnum xs) = adata.Array []"
 
 subsection \<open>Memory Variables\<close>
 
@@ -910,7 +1036,7 @@ definition create_memory_array where
     do {
       s \<leftarrow> sm;
       (case s of
-        rvalue.Value (Uint s') \<Rightarrow> minit (sdata.Array (array (unat s') (cdefault t))) i
+        rvalue.Value (Uint s') \<Rightarrow> minit (adata.Array (array (unat s') (cdefault t))) i
       | _ \<Rightarrow> throw Err)
     }"
 

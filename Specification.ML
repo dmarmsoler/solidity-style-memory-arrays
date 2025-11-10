@@ -254,8 +254,8 @@ val _ = let
             | mk_valtype \<^term>\<open>SType.TValue TSint\<close> = \<^typ>\<open>256 word\<close>
             | mk_valtype \<^term>\<open>SType.TValue TAddress\<close> = b
             | mk_valtype \<^term>\<open>SType.TValue TBytes\<close> = \<^typ>\<open>String.literal\<close>
-            | mk_valtype (Const (\<^const_name>\<open>SType.TArray\<close>, _) $ _ $ _) = \<^Type>\<open>sdata \<^Type>\<open>valtype b\<close>\<close>
-            | mk_valtype (Const (\<^const_name>\<open>SType.DArray\<close>, _) $ _) = \<^Type>\<open>sdata \<^Type>\<open>valtype b\<close>\<close>
+            | mk_valtype (Const (\<^const_name>\<open>SType.TArray\<close>, _) $ _ $ _) = \<^Type>\<open>adata \<^Type>\<open>valtype b\<close>\<close>
+            | mk_valtype (Const (\<^const_name>\<open>SType.DArray\<close>, _) $ _) = \<^Type>\<open>adata \<^Type>\<open>valtype b\<close>\<close>
             | mk_valtype _ = error "unsupported type"
 
           val mk_contract_datatype =

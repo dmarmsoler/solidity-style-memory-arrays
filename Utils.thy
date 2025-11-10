@@ -436,6 +436,35 @@ proof -
   then show ?thesis by simp
 qed
 
+section \<open>Filter\<close>
+
+lemma length_filter_take_suc:
+  assumes "n<length daa"
+      and "P (daa!n)"
+    shows "length (filter P (take (Suc n) daa)) = Suc (length (filter P (take n daa)))"
+  using assms
+proof (induction daa arbitrary: n)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a x)
+  then show ?case
+  proof (cases n)
+    case 0
+    then show ?thesis
+      using Cons.prems(2) by auto
+  next
+    case (Suc nat)
+    then have "nat < length (x)"
+      using Cons.prems(1) by auto
+    moreover have "P (x ! nat)"
+      using Cons.prems(2) Suc by auto
+    ultimately have "length (filter P (take (Suc nat) x)) = Suc (length (filter P (take nat x)))"
+      using Cons.IH by blast
+    then show ?thesis by (simp add: Suc)
+  qed
+qed
+
 section \<open>Those\<close>
 
 lemma those_map:

@@ -9,12 +9,12 @@ datatype 'v call_data =
   | is_Array: Array (ar: "'v call_data list")
 
 fun c_to_s where
-  "c_to_s (Value v) = sdata.Value v"
-| "c_to_s (Array xs) = sdata.Array (map c_to_s xs)"
+  "c_to_s (Value v) = adata.Value v"
+| "c_to_s (Array xs) = adata.Array (map c_to_s xs)"
 
 fun s_to_c where
-  "s_to_c (sdata.Value v) = Value v"
-| "s_to_c (sdata.Array xs) = Array (map s_to_c xs)"
+  "s_to_c (adata.Value v) = Value v"
+| "s_to_c (adata.Array xs) = Array (map s_to_c xs)"
 
 lemma stoc_ctos:
   "s_to_c (c_to_s a) = a"
@@ -25,7 +25,7 @@ lemma eq_iff_stoc:
 proof (induction a arbitrary: b)
   case (Value x)
   then show ?case
-    by (metis c_to_s.simps(1,2) s_to_c.elims sdata.disc(1,2))
+    by (metis c_to_s.simps(1,2) s_to_c.elims adata.disc(1,2))
 next
   case (Array xs)
   show ?case
@@ -35,8 +35,8 @@ next
 qed
 
 function (sequential) T where
-  "T (sdata.Value v) (Value v') = (v = v')"
- |"T (sdata.Array xs) (Array xs') = list_all2 T xs xs'"
+  "T (adata.Value v) (Value v') = (v = v')"
+ |"T (adata.Array xs) (Array xs') = list_all2 T xs xs'"
  |"T _ _ = False"
   by pat_completeness auto
 termination T
@@ -81,33 +81,33 @@ setup_lifting q
 code_datatype call_data.Value call_data.Array
 
 lift_definition minit :: "'v call_data \<Rightarrow> 'v memory \<Rightarrow> nat \<times> 'v memory" is Memory.minit .
-lift_definition clookup :: "'v::vtype list \<Rightarrow> 'v call_data \<Rightarrow> 'v call_data option" is Memory.dlookup .
+lift_definition clookup :: "'v::vtype list \<Rightarrow> 'v call_data \<Rightarrow> 'v call_data option" is Memory.alookup .
 
 context includes lifting_syntax begin
 
-lemma Value_transfer[transfer_rule]: "(R ===> (pcr_call_data R)) sdata.Value call_data.Value"
+lemma Value_transfer[transfer_rule]: "(R ===> (pcr_call_data R)) adata.Value call_data.Value"
   apply (auto simp: rel_fun_def pcr_call_data_def relcompp_apply)
-  by (meson T.simps(1) sdata.rel_inject(1))
+  by (meson T.simps(1) adata.rel_inject(1))
 
-lemma Array_transfer[transfer_rule]: "((list_all2 (pcr_call_data R)) ===> (pcr_call_data R)) sdata.Array call_data.Array"
+lemma Array_transfer[transfer_rule]: "((list_all2 (pcr_call_data R)) ===> (pcr_call_data R)) adata.Array call_data.Array"
   apply (auto simp: rel_fun_def pcr_call_data_def relcompp_apply)
 proof -
   fix x y
-  assume "list_all2 (rel_sdata R OO T) x y"
-  then show "\<exists>b. rel_sdata R (sdata.Array x) b \<and> T b (call_data.Array y)"
+  assume "list_all2 (rel_adata R OO T) x y"
+  then show "\<exists>b. rel_adata R (adata.Array x) b \<and> T b (call_data.Array y)"
   proof (induction rule: list_all2_induct)
     case Nil
     then show ?case
-      by (metis T_eq_stoc list.ctr_transfer(1) list.map_disc_iff s_to_c.simps(2) sdata.rel_inject(2))
+      by (metis T_eq_stoc list.ctr_transfer(1) list.map_disc_iff s_to_c.simps(2) adata.rel_inject(2))
   next
     case (Cons x xs y ys)
-    then obtain b where *: "rel_sdata R (sdata.Array xs) b \<and> T b (call_data.Array ys)" by blast
-    then obtain ys' where ys_def: "b = sdata.Array ys'"
-      by (metis T.simps(4) sdata.exhaust_sel)
+    then obtain b where *: "rel_adata R (adata.Array xs) b \<and> T b (call_data.Array ys)" by blast
+    then obtain ys' where ys_def: "b = adata.Array ys'"
+      by (metis T.simps(4) adata.exhaust_sel)
 
-    from ys_def have "rel_sdata R (sdata.Array (x # xs)) (sdata.Array (c_to_s y # ys'))"
-      by (metis Cons.hyps(1) T_eq_stoc * stoc_ctos eq_iff_stoc list.rel_intros(2) relcompp.cases sdata.rel_inject(2))
-    moreover from ys_def have "T (sdata.Array (c_to_s y # ys')) (call_data.Array (y # ys))"
+    from ys_def have "rel_adata R (adata.Array (x # xs)) (adata.Array (c_to_s y # ys'))"
+      by (metis Cons.hyps(1) T_eq_stoc * stoc_ctos eq_iff_stoc list.rel_intros(2) relcompp.cases adata.rel_inject(2))
+    moreover from ys_def have "T (adata.Array (c_to_s y # ys')) (call_data.Array (y # ys))"
       using T_eq_stoc * stoc_ctos by auto
     ultimately show ?case by blast
   qed
@@ -144,12 +144,12 @@ qed
 
 lemma eq_transfer[transfer_rule]: "(rel_option (pcr_call_data (=)) ===> (rel_option (pcr_call_data (=)) ===> (=))) (=) (=)"
   apply (auto simp: rel_fun_def pcr_call_data_def relcompp_apply)
-  apply (metis T_eq_stoc eq_OO option.rel_cases option.sel rel_option_None1 sdata.rel_eq)
-  by (metis T_eq_stoc eq_iff_stoc eq_OO option.rel_eq option.rel_sel sdata.rel_eq)
+  apply (metis T_eq_stoc eq_OO option.rel_cases option.sel rel_option_None1 adata.rel_eq)
+  by (metis T_eq_stoc eq_iff_stoc eq_OO option.rel_eq option.rel_sel adata.rel_eq)
 
 lemma nth_safe_transfer[transfer_rule]: "(list_all2 ((pcr_call_data (=))) ===> ((=)) ===> rel_option (pcr_call_data (=))) nth_safe nth_safe"
   apply (auto simp: rel_fun_def pcr_call_data_def relcompp_apply)
-  apply (simp add: eq_OO list_all2_conv_all_nth sdata.rel_eq)
+  apply (simp add: eq_OO list_all2_conv_all_nth adata.rel_eq)
   by (simp add: nth_safe_def)
 
 end
@@ -181,7 +181,7 @@ lemma minit_length_inc: "length (snd (minit cd m0)) > length m0"
 
 corollary minit_loc:
   assumes "minit cd m0 = (l, m)"
-  shows "s_union_fs (loc m) (loc m0) (locs_calldata m l)"
+  shows "s_union_fs (loc m) (loc m0) (alocs m l)"
   using assms apply transfer using minit_loc by blast
 
 section \<open>Storage\<close>
@@ -234,9 +234,9 @@ subsection \<open>Copy from Storage to Memory\<close>
   in a new array added at the end and the pointer adapted.
 *)
 
-fun convert2 :: "'v storage_data \<Rightarrow> 'v sdata option" where
-  "convert2 (storage_data.Value x) = Some (sdata.Value x)"
-| "convert2 (storage_data.Array ds) = those (map convert2 ds) \<bind> Some \<circ> sdata.Array"
+fun convert2 :: "'v storage_data \<Rightarrow> 'v adata option" where
+  "convert2 (storage_data.Value x) = Some (adata.Value x)"
+| "convert2 (storage_data.Array ds) = those (map convert2 ds) \<bind> Some \<circ> adata.Array"
 | "convert2 _ = None"
 
 (*Fixme: Can this be lifted from convert2?*)

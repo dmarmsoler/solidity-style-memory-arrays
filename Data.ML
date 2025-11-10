@@ -288,10 +288,10 @@ fun mk_valtype_term (name, \<^term>\<open>SType.TValue TBool\<close>) ctxt =
     Name.variant "bt" ctxt |>> (fn x => (x, \<^typ>\<open>String.literal\<close>))
     |>> ``(fn x => (name, \<^Const>\<open>Bytes a for \<open>Free x\<close>\<close>))
   | mk_valtype_term (name, (Const (\<^const_name>\<open>SType.TArray\<close>, _) $ _ $ _)) ctxt= 
-    Name.variant "ar" ctxt |>> (fn x => (x, \<^Type>\<open>sdata \<^Type>\<open>valtype a\<close>\<close>))
+    Name.variant "ar" ctxt |>> (fn x => (x, \<^Type>\<open>adata \<^Type>\<open>valtype a\<close>\<close>))
     |>> ``(fn x => (name, Free x))
   | mk_valtype_term (name, (Const (\<^const_name>\<open>SType.DArray\<close>, _) $ _)) ctxt = 
-    Name.variant "ar" ctxt |>> (fn x => (x, \<^Type>\<open>sdata \<^Type>\<open>valtype a\<close>\<close>))
+    Name.variant "ar" ctxt |>> (fn x => (x, \<^Type>\<open>adata \<^Type>\<open>valtype a\<close>\<close>))
     |>> ``(fn x => (name, Free x))
   | mk_valtype_term _ _ = error "unsupported type"
 

@@ -6,21 +6,25 @@ session "Solidity-dev" = "HOL-Library" +
     "HOL-Eisbach"
   theories
     Utils
+    State_Monad
     Memory
     Stores
-    State_Monad
     State
     Solidity
+    Contract
     WP
-    Unit_Tests
+    Mcalc
+    MTests
     Solidity_Main
+    Unit_Tests
+    MTests
     Bank
     Token
     Casino
     Voting
     SimpleAuction
-    Mcalc
-    MTests
+    Aliasing
+    ArrayBuilder
   document_files
     "root.tex"
     "orcidlink.sty"

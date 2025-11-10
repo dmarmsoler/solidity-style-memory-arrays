@@ -2,6 +2,12 @@ theory WP
 imports Solidity "HOL-Eisbach.Eisbach"
 begin
 
+(*
+  TODO:
+    1) Implement smarter vcg. In particular for kdequals we want to first try specific rules and then less specific rules.
+       Consider, for example ArrayBuilder.thy and the two lemmas kdequals_x_True and kdequals_True.
+*)
+
 section "Weakest precondition calculus"
 
 named_theorems wprules
@@ -847,7 +853,7 @@ lemma (in Contract) wp_create_memory_array[wprules]:
   assumes "wp sm
      (\<lambda>a. wp (case a of
               rvalue.Value (Uint s') \<Rightarrow>
-                Solidity.minit (sdata.Array (array (unat s') (cdefault t))) i
+                Solidity.minit (adata.Array (array (unat s') (cdefault t))) i
               | rvalue.Value _ \<Rightarrow> throw Err | _ \<Rightarrow> throw Err)
            P E)
      E s"
@@ -888,7 +894,7 @@ declare(in Contract) wp_stackCheck[wprules]
 declare minit.simps [simp del]
 declare mvalue_update.simps [simp del]
 declare mlookup.simps [simp del]
-declare dlookup.simps [simp del]
+declare alookup.simps [simp del]
 declare locations.simps [simp del]
 
 end
