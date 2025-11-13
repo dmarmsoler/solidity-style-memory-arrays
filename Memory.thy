@@ -364,11 +364,11 @@ qed
 
 section \<open>Memory Update\<close>
 
-fun mvalue_update :: "'v::vtype list \<Rightarrow> location \<times> 'v mdata \<times> 'v memory \<Rightarrow> 'v memory option" where
-  "mvalue_update xs (l, v, m) = mlookup m xs l \<bind> (\<lambda>l. list_update_safe m l v)"
+fun mupdate :: "'v::vtype list \<Rightarrow> location \<times> 'v mdata \<times> 'v memory \<Rightarrow> 'v memory option" where
+  "mupdate xs (l, v, m) = mlookup m xs l \<bind> (\<lambda>l. list_update_safe m l v)"
 
 lemma mvalue_update_obtain:
-  assumes "mvalue_update xs (l,v,m) = Some x"
+  assumes "mupdate xs (l,v,m) = Some x"
   obtains l'
   where "mlookup m xs l = Some l'"
     and "l' < length m"
@@ -376,7 +376,7 @@ lemma mvalue_update_obtain:
   using assms by (cases "mlookup m xs l", auto simp add: list_update_safe_def split:if_split_asm)
 
 lemma mvalue_update_length:
-  assumes "mvalue_update is (ml, v, m) = Some m'"
+  assumes "mupdate is (ml, v, m) = Some m'"
     shows "length m' = length m"
   by (metis assms length_list_update mvalue_update_obtain)
 

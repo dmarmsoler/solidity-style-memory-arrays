@@ -469,7 +469,7 @@ where
   "assign_stack i is (rvalue.Value v) =
     stack_disjoined i
       (K ((modify (stack_update i (kdata.Value v))) \<bind> K (return Empty)))
-      (\<lambda>p. (memory_update_monad (\<lambda>m. mvalue_update is (p, (mdata.Value v), m))))
+      (\<lambda>p. (memory_update_monad (\<lambda>m. mupdate is (p, (mdata.Value v), m))))
       (K (K (throw Err)))
       (throw Err)
       (\<lambda>p xs. storage_update_monad xs is (K (storage_data.Value v)) p)
@@ -479,7 +479,7 @@ where
       (K (throw Err))
       (\<lambda>p'. case_list is
         (modify (stack_update i (kdata.Memory p))\<bind> K (return Empty))
-        (K (K (memory_update_monad (\<lambda>m. (m$p) \<bind> (\<lambda>v. mvalue_update is (p', v, m)))))))
+        (K (K (memory_update_monad (\<lambda>m. (m$p) \<bind> (\<lambda>v. mupdate is (p', v, m)))))))
       (K (K (throw Err)))
       (throw Err)
       (\<lambda>p' xs. option_disjoined
@@ -491,7 +491,7 @@ where
       (K (throw Err))
       (\<lambda>p'. option_disjoined
         (\<lambda>s. state.Calldata s $$ p \<bind> clookup xs)
-        (\<lambda>cd. memory_update_monad (mvalue_update is \<circ> (read_calldata_memory cd p'))))
+        (\<lambda>cd. memory_update_monad (mupdate is \<circ> (read_calldata_memory cd p'))))
       (K (K (throw Err)))
       (modify (stack_update i (kdata.Calldata (Some \<lparr>Location=p, Offset= xs\<rparr>))) \<bind> K (return Empty))
       (\<lambda>p' xs'. option_disjoined
@@ -506,7 +506,7 @@ where
         (\<lambda>s. slookup xs (state.Storage s this p))
         (\<lambda>sd. memory_update_monad
           (\<lambda>m. read_storage_memory sd p' m \<bind>
-            mvalue_update is)))
+            mupdate is)))
       (K (K (throw Err)))
       (throw Err)
       (\<lambda>p' xs'. case_list is
@@ -899,7 +899,7 @@ qed
 lemma mupdate_array_typing_value:
   assumes "state.Memory sa ! ml = mdata.Array ma0"
       and "\<forall>i<length ma0. (ma0 ! i) < length (state.Memory sa) \<and> (\<exists>ix. state.Memory sa ! (ma0 ! i) = mdata.Value (Uint ix))"
-      and "mvalue_update [Uint xa] (ml, mdata.Value (Uint x), state.Memory sa) = Some yg"
+      and "mupdate [Uint xa] (ml, mdata.Value (Uint x), state.Memory sa) = Some yg"
     shows "\<exists>ma0. yg ! ml = mdata.Array ma0
           \<and> (\<forall>i<length ma0. (ma0 ! i) < length yg \<and> (\<exists>ix. yg ! (ma0 ! i) = mdata.Value (Uint ix)))"
 proof -

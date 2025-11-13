@@ -892,7 +892,7 @@ lemma (in Contract) wp_assign_stack_kdvalue[wprules]:
 declare(in Contract) wp_stackCheck[wprules]
 
 declare write.simps [simp del]
-declare mvalue_update.simps [simp del]
+declare mupdate.simps [simp del]
 declare mlookup.simps [simp del]
 declare alookup.simps [simp del]
 declare locations.simps [simp del]

@@ -63,8 +63,8 @@ lemma (in Contract) example:
   apply (erule locs_locs_write_1)
   apply (erule read_write)
   apply (erule locs_locs_write_1)
-  apply (erule write_read, simp add:prefix_def)
-  apply (erule write_read, simp add:prefix_def)
+  apply (erule write_read)
+  apply (erule write_read)
   by (simp add:alookup.simps)
 
 lemma (in Contract) example_short:

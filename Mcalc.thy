@@ -20,9 +20,9 @@ declare(in Contract) wp_assign_stack_kdvalue[wprules del]
 declare(in Contract) wp_stackCheck[wprules del]
 lemma (in Contract) wp_assign_stack_kdvalue_memory[wprules]:
   assumes "Stack s $$ i = Some (kdata.Memory p)"
-      and "mvalue_update xs (p, mdata.Value v, state.Memory s) = None \<Longrightarrow> E Err s"
+      and "mupdate xs (p, mdata.Value v, state.Memory s) = None \<Longrightarrow> E Err s"
       and "\<And>y. Stack s $$ i = Some (kdata.Memory p) \<Longrightarrow>
-         mvalue_update xs (p, mdata.Value v, state.Memory s) = Some y \<Longrightarrow>
+         mupdate xs (p, mdata.Value v, state.Memory s) = Some y \<Longrightarrow>
          P Empty (Memory_update (K y) s)"
     shows "wp (assign_stack i xs (rvalue.Value v)) P E s"
   apply wp+
@@ -41,13 +41,13 @@ lemma (in Contract) wp_assign_stack_memory[wprules]:
       and "\<And>a list aa.
        Stack s $$ i = Some (kdata.Memory p) \<Longrightarrow>
        is = a # list \<Longrightarrow>
-       mvalue_update (a # list) (p, aa, state.Memory s) = None \<Longrightarrow>
+       mupdate (a # list) (p, aa, state.Memory s) = None \<Longrightarrow>
        state.Memory s $ l = Some aa \<Longrightarrow> E Err s"
       and "is = [] \<Longrightarrow> P Empty (stack_update i (kdata.Memory l) s)"
       and "\<And>a list y aa.
        Stack s $$ i = Some (kdata.Memory p) \<Longrightarrow>
        is = a # list \<Longrightarrow>
-       mvalue_update (a # list) (p, aa, state.Memory s) = Some y \<Longrightarrow>
+       mupdate (a # list) (p, aa, state.Memory s) = Some y \<Longrightarrow>
        state.Memory s $ l = Some aa \<Longrightarrow> P Empty (Memory_update (K y) s)" 
   shows "wp (assign_stack i is (rvalue.Memory l)) P E s"
   apply wp+
@@ -106,31 +106,31 @@ lemma pred_some_read:
 text \<open>This destruction rule needs to be instantiated manually\<close>
 
 lemma aliasing:
-  assumes "mvalue_update xs (l1, v, m) = Some m'"
+  assumes "mupdate xs (l1, v, m) = Some m'"
       and "xs = xs1@ys"
       and "ys \<noteq> []"
       and "mlookup m xs1 l1 = Some l1'"
       and "m $ l1' = Some l1''"
       and "mlookup m xs2 l2 \<bind> ($) m = Some l1''"
-    shows "mvalue_update (xs2 @ ys) (l2, v, m) = Some m'"
+    shows "mupdate (xs2 @ ys) (l2, v, m) = Some m'"
   using mlookup_append_same[OF assms(3,4,5,6)]
-  by (metis assms(1,2) mvalue_update.simps)
+  by (metis assms(1,2) mupdate.simps)
 
 lemma aliasing2:
-  assumes "mvalue_update xs (l1, v, m) = Some m'"
+  assumes "mupdate xs (l1, v, m) = Some m'"
       and "xs = xs1@ys"
       and "ys \<noteq> []"
       and "mlookup m xs2 l2 = Some l1'"
       and "m $ l1' = Some l1''"
       and "mlookup m xs1 l1 \<bind> ($) m = Some l1''"
-    shows "mvalue_update (xs2 @ ys) (l2, v, m) = Some m'"
+    shows "mupdate (xs2 @ ys) (l2, v, m) = Some m'"
   using mlookup_append_same[OF assms(3,4,5,6)]
-  by (metis assms(1,2) mvalue_update.simps)
+  by (metis assms(1,2) mupdate.simps)
 
 subsection \<open>Safe List Lookup\<close>
 
 lemma nth_some:
-  assumes "mvalue_update xs (l0, v, m0) = Some m1"
+  assumes "mupdate xs (l0, v, m0) = Some m1"
       and "m0 $ l2 = Some aa"
       and "the (mlookup m0 xs l0) \<noteq> l2"
     shows "m1 $ l2 = Some aa"
@@ -147,7 +147,7 @@ qed
 subsection \<open>Memory Lookup\<close>
 
 lemma mlookup_mupdate:
-  assumes "mvalue_update xs (l0, v0, m0) = Some m1"
+  assumes "mupdate xs (l0, v0, m0) = Some m1"
       and "mlookup m0 ys l1 = Some l1'"
       and "locations m0 ys l1 = Some (the (locations m0 ys l1))"
       and "the (mlookup m0 xs l0) |\<notin>| the (locations m0 ys l1)"
@@ -174,7 +174,7 @@ lemma mlookup_some_write2:
   by (metis write_sprefix mlookup_prefix_mlookup snd_conv sprefix_prefix)
 
 lemma mlookup_nth_mupdate:
-  assumes "mvalue_update xs (l1, v, m0) = Some m1"
+  assumes "mupdate xs (l1, v, m0) = Some m1"
       and "the (mlookup m0 xs l1) |\<notin>| the (locations m0 xs l1)"
     shows "mlookup m1 xs l1 \<bind> ($) m1 = Some v"
 proof -
@@ -227,7 +227,7 @@ proof -
 qed
 
 lemma mlookup_neq_mupdate2:
-  assumes "mvalue_update xs (l0, v, m0) = Some m1"
+  assumes "mupdate xs (l0, v, m0) = Some m1"
       and "mlookup m1 zs laa = Some x"
       and "mlookup m0 zs laa = Some (the (mlookup m0 zs laa))"
       and "mlookup m0 ys l1 = Some (the (mlookup m0 ys l1))"
@@ -247,7 +247,7 @@ proof -
 qed
 
 lemma mlookup_neq_mupdate:
-  assumes "mvalue_update ys (l1, v, m0) = Some m1"
+  assumes "mupdate ys (l1, v, m0) = Some m1"
       and "mlookup m0 xs l0 = Some l0'"
       and "m0 $ l0' = Some v"
       and "mlookup m1 as l2 = Some yg"
@@ -351,7 +351,7 @@ proof -
 qed
 
 lemma locations_mupdate:
-  assumes "mvalue_update xs (l0, v, m0) = Some m1"
+  assumes "mupdate xs (l0, v, m0) = Some m1"
       and "the (mlookup m0 xs l0) |\<notin>| (the (locations m0 ys l1))"
       and "locations m0 ys l1 = Some (the (locations m0 ys l1))"
     shows "locations m1 ys l1 = Some (the (locations m1 ys l1))"
@@ -427,7 +427,7 @@ proof -
 qed
 
 lemma mlookup_locations_mupdate_1:
-  assumes "mvalue_update xs (l0, v, m0) = Some m1"
+  assumes "mupdate xs (l0, v, m0) = Some m1"
       and "mlookup m0 ys l1 = Some l0'"
       and "m0 $ l0' = Some v"
       and "zs = z # zs'"
@@ -512,7 +512,7 @@ proof -
 qed
 
 lemma mlookup_locations_mupdate_2:
-  assumes "mvalue_update ys (l1, v, m0) = Some m1"
+  assumes "mupdate ys (l1, v, m0) = Some m1"
       and "mlookup m0 xs l0 = Some l0'"
       and "m0 $ l0' = Some v"
       and "zs \<noteq> []"
@@ -581,18 +581,18 @@ proof -
 qed
 
 lemma locs_some_mupdate_value:
-  assumes "mvalue_update is1 (l1, mdata.Value v, m0) = Some m1"
+  assumes "mupdate is1 (l1, mdata.Value v, m0) = Some m1"
       and "alocs m0 l1 = Some (the (alocs m0 l1))"
     shows "alocs m1 l1 = Some (the (alocs m1 l1))"
   using assms
     a_data.mupdate_locs_subset[of m0 l1 m1 _ "v"]
     mvalue_update_obtain[OF assms(1)]
   apply (cases "mlookup m0 is1 l1")
-  apply (auto simp add: mvalue_update.simps list_update_safe_def split:if_split_asm)
+  apply (auto simp add: mupdate.simps list_update_safe_def split:if_split_asm)
   by fastforce
 
 lemma locs_some_mupdate_1:
-  assumes "mvalue_update is1 (l1, v, m0) = Some m1"
+  assumes "mupdate is1 (l1, v, m0) = Some m1"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m0 $ l2' = Some v"
       and "adisjoined m0 (the (alocs m0 l1))"
@@ -646,7 +646,7 @@ proof -
 qed
 
 lemma locs_some_mupdate_2:
-  assumes "mvalue_update xs (l0, v, m0) = Some m1"
+  assumes "mupdate xs (l0, v, m0) = Some m1"
     and "the (mlookup m0 xs l0) |\<notin>| the (alocs m0 l)"
     and "alocs m0 l = Some (the (alocs m0 l))"
   shows "alocs m1 l = Some (the (alocs m1 l))"
@@ -679,7 +679,7 @@ proof -
 qed
 
 lemma locs_disj_mupdate:
-  assumes "mvalue_update is1 (l1, v, m0) = Some m1"
+  assumes "mupdate is1 (l1, v, m0) = Some m1"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m0 $ l2' = Some v"
       and "alocs m0 l1 = Some (the (alocs m0 l1))"
@@ -765,7 +765,14 @@ proof -
   ultimately show ?thesis using assms(4) by simp
 qed
 
-subsection \<open>Copy Memory\<close>
+subsection \<open>Write Memory\<close>
+
+corollary write_read:
+  assumes "Memory.write cd m0 = (l, m)"
+  shows "aread m l = Some cd"
+  using Memory.write_read assms by blast
+
+subsection \<open>Read Memory\<close>
 
 lemma read_write:
   assumes "Memory.write cd m0 = (l0, m1)"
@@ -776,7 +783,7 @@ lemma read_write:
   by (metis write_sprefix a_data.read_append snd_conv sprefix_prefix)
 
 lemma read_mupdate_value:
-  assumes "mvalue_update xs (l0, mdata.Value v, m0) = Some m1"
+  assumes "mupdate xs (l0, mdata.Value v, m0) = Some m1"
       and "adisjoined m0 (the (alocs m0 l0))"
       and "aread m0 l0 = Some cd0"
     shows "aread m1 l0 = Some (the (aupdate xs (adata.Value v) cd0))" 
@@ -807,7 +814,7 @@ proof-
 qed
 
 lemma read_mupdate_1:
-  assumes "mvalue_update is1 (l1, v, m0) = Some m1"
+  assumes "mupdate is1 (l1, v, m0) = Some m1"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m0 $ l2' = Some v"
       and "adisjoined m0 (the (alocs m0 l1))"
@@ -898,7 +905,7 @@ proof-
 qed
 
 lemma read_mupdate_2:
-  assumes "mvalue_update is1 (l0, v, m0) = Some m1"
+  assumes "mupdate is1 (l0, v, m0) = Some m1"
       and "the (mlookup m0 is1 l0) |\<notin>| the (alocs m0 l1)"
       and "aread m0 l1 = Some cd0"
     shows "aread m1 l1 = Some cd0"
@@ -942,7 +949,7 @@ proof -
 qed
 
 lemma disjoined_mupdate_value:
-  assumes "mvalue_update is (ml, mdata.Value v, state.Memory sa) = Some yg"
+  assumes "mupdate is (ml, mdata.Value v, state.Memory sa) = Some yg"
       and "alocs (state.Memory sa) ml = Some (the (alocs (state.Memory sa) ml))"
       and "adisjoined (state.Memory sa) (the (alocs (state.Memory sa) ml))"
     shows "adisjoined yg (the (alocs yg ml))"
@@ -1009,7 +1016,7 @@ proof (rule, rule, rule)
 qed
 
 lemma disjoined_mupdate:
-  assumes "mvalue_update is1 (l1, v, m0) = Some m1"
+  assumes "mupdate is1 (l1, v, m0) = Some m1"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m0 $ l2' = Some v"
       and "alocs m0 l1 = Some (the (alocs m0 l1))"
@@ -1103,7 +1110,7 @@ proof -
 qed
 
 lemma disjoined_mupdate2:
-  assumes "mvalue_update is (l0, v, m0) = Some m1"
+  assumes "mupdate is (l0, v, m0) = Some m1"
       and "alocs m0 l1 = Some (the (alocs m0 l1))"
       and "the (mlookup m0 is l0) |\<notin>| the (alocs m0 l1)"
       and "adisjoined m0 (the (alocs m0 l1))"
@@ -1154,7 +1161,7 @@ method mc uses lookup
   | (erule locs_some_mupdate_value)
   | (erule locs_some_mupdate_1, assumption, assumption)
   | (erule locs_some_mupdate_2)
-  | (erule write_read, solves \<open>simp add:prefix_def\<close>)
+  | (erule write_read)
   | (erule read_write)
   | (erule read_mupdate_value)
   | (erule read_mupdate_1, solves\<open>simp\<close>, solves\<open>simp\<close>)
