@@ -56,7 +56,7 @@ val _ = let
                                 |> change_externals name_ct (call name_ct)
                                 |> Syntax.check_term ctxt
                                 |> change_types
-                                |> mk_inits mk_minit constr_memory
+                                |> mk_inits mk_write constr_memory
                                 |> mk_inits mk_init constr_params
                                 |> mk_Bind mk_newMemory
                                 |> mk_Bind mk_newStack
@@ -124,7 +124,7 @@ val _ = let
                                 |> Syntax.check_term ctxt
                                 |> change_types
                                 |> (if external then mk_inits mk_cinit cdlist else I)
-                                |> (if external then mk_inits mk_minit memlist else I)
+                                |> (if external then mk_inits mk_write memlist else I)
                                 |> mk_inits mk_init parlist
                                 |> (if external then mk_Bind mk_newCalldata else I)
                                 |> (if external then mk_Bind mk_newMemory else I)
@@ -243,7 +243,7 @@ val _ = let
             end;
 
           val name_lc = decapitalizeFirst (Binding.name_of name);
-          val ctxt = Proof_Context.init_global thy; (*TODO: check if needed*)
+          val ctxt = Proof_Context.init_global thy; (*TODO: disjoined if needed*)
           val variables = map (apply2 (Syntax.read_term ctxt)) variables;
           val constr_params = map (apply2 (Syntax.read_term ctxt)) constr_params;
           val constr_memory = map (apply2 (Syntax.read_term ctxt)) constr_memory;

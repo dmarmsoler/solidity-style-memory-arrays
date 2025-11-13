@@ -29,7 +29,7 @@ sig
   val mk_inv_state: term -> term
   val mk_Bind: term -> term -> term
   val mk_init: term * term -> term
-  val mk_minit: term * term -> term
+  val mk_write: term * term -> term
   val mk_cinit: term * term -> term
   val mk_newStack: term
   val mk_newMemory: term
@@ -226,7 +226,7 @@ fun mk_Bind x y = \<^Const>\<open>bind rvalueT exT stateT rvalueT for x \<open>\
 
 fun mk_init (x, y) = \<^Const>\<open>Solidity.init a for y x\<close>;
 
-fun mk_minit (x, y) = \<^Const>\<open>Solidity.minit a for y x\<close>;
+fun mk_write (x, y) = \<^Const>\<open>Solidity.write a for y x\<close>;
 
 fun mk_cinit (x, y) = \<^Const>\<open>Solidity.cinit a for y x\<close>;
 

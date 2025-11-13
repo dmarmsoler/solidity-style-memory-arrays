@@ -343,7 +343,7 @@ definition(in Contract) getItems_post where
   "getItems_post ow start_state return_value end_state \<equiv>
     pred_some
       (\<lambda>xs. filter_items end_state ow (map (unat \<circ> valtype.uint \<circ> adata.vt) (adata.ar xs)))
-      (acopy (State.Memory end_state) (rvalue.memloc return_value))"
+      (aread (State.Memory end_state) (rvalue.memloc return_value))"
 
 lemma (in Contract) filter_items_prefix_suc_neq:
   fixes ad ar x a
@@ -388,11 +388,11 @@ section \<open>While Invariant\<close>
 
 definition(in Contract) while_inv where
   "while_inv own state \<equiv>
-    pred_some (\<lambda>xs. \<exists>ar. xs = adata.Array ar \<and> filter_items_prefix (unat (valtype.uint (kdata.vt (state.Stack state $$! i)))) (state.Storage state this items) (valtype.ad (kdata.vt (state.Stack state $$! owner))) (map (unat \<circ> valtype.uint \<circ> adata.vt) (take (unat (valtype.uint (kdata.vt (state.Stack state $$! counter)))) ar))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
-    \<and> acheck (state.Memory state) (the (alocs (state.Memory state) (kdata.memloc (state.Stack state $$! result))))
+    pred_some (\<lambda>xs. \<exists>ar. xs = adata.Array ar \<and> filter_items_prefix (unat (valtype.uint (kdata.vt (state.Stack state $$! i)))) (state.Storage state this items) (valtype.ad (kdata.vt (state.Stack state $$! owner))) (map (unat \<circ> valtype.uint \<circ> adata.vt) (take (unat (valtype.uint (kdata.vt (state.Stack state $$! counter)))) ar))) (aread (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
+    \<and> adisjoined (state.Memory state) (the (alocs (state.Memory state) (kdata.memloc (state.Stack state $$! result))))
     \<and> state.Stack state $$ owner = Some (kdata.Value own)
     \<and> length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own)) = unat (valtype.uint (storage_data.vt (storage_data.mp (state.Storage state this itemCount) own)))
-    \<and> pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
+    \<and> pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (aread (State.Memory state) (kdata.memloc (state.Stack state $$! result)))
     \<and> (\<exists>ml. state.Stack state $$ result = Some (kdata.Memory ml)
         \<and> ml < length (state.Memory state)
         \<and> (\<exists>ma0. state.Memory state ! ml = mdata.Array ma0
@@ -413,18 +413,18 @@ definition(in Contract) while_inv where
 lemma(in Contract) while_init:
   assumes "unat (valtype.uint (kdata.vt (state.Stack state $$! i))) = 0"
       and "unat (valtype.uint (kdata.vt (state.Stack state $$! counter))) = 0"
-      and "acheck (state.Memory state) (the (alocs (state.Memory state) (kdata.memloc (state.Stack state $$! result))))"
+      and "adisjoined (state.Memory state) (the (alocs (state.Memory state) (kdata.memloc (state.Stack state $$! result))))"
       and "state.Stack state $$ owner = Some (kdata.Value own)"
       and "length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own)) = unat (valtype.uint (storage_data.vt (storage_data.mp (state.Storage state this itemCount) own)))"
       and "length (storage_data.ar (state.Storage state this items)) < 2^256"
-      and "pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (acopy (State.Memory state) (kdata.memloc (state.Stack state $$! result)))"
+      and "pred_some (\<lambda>xs. length (adata.ar xs) = length (allItems (storage_data.ar (state.Storage state this items)) (valtype.ad own))) (aread (State.Memory state) (kdata.memloc (state.Stack state $$! result)))"
       and "(\<exists>ml. state.Stack state $$ result = Some (kdata.Memory ml)
             \<and> ml < length (state.Memory state)
             \<and> (\<exists>ma0. state.Memory state ! ml = mdata.Array ma0
                 \<and> (\<forall>i<length ma0. (ma0 ! i) < length (state.Memory state) \<and> (\<exists>ix. state.Memory state ! (ma0!i) = mdata.Value (valtype.Uint ix)))))"
       and "(\<exists>x. state.Stack state $$ i = Some (kdata.Value (valtype.Uint x)))"
       and "(\<exists>x. state.Stack state $$ counter = Some (kdata.Value (valtype.Uint x)))"
-      and "acopy
+      and "aread
             (state.Memory state)
             (kdata.memloc (Stack state $$! result))
           = Some (adata.Array (array (unat si) (adata.Value (Uint 0))))"
@@ -750,10 +750,10 @@ proof -
          apply mc
         defer
         apply (simp add: wpsimps allItems_def getItems_pre_def)
-        apply (rule pred_some_copy_memory)
+        apply (rule pred_some_read)
          apply mc+
         apply (simp)
-       apply (simp add: wpsimps minit_array_typing_value)
+       apply (simp add: wpsimps write_array_typing_value)
       defer
       apply (simp add: wpsimps)
      apply (simp add: wpsimps)
@@ -891,7 +891,7 @@ proof -
      apply wp
      apply (auto simp add: wpsimps while_inv_def allItems_def)[1]
        apply (erule pred_someE)
-       apply (rule pred_some_copy_memory,assumption)
+       apply (rule pred_some_read,assumption)
        apply (drule kdless_uint_length_true)
         apply simp
        apply (erule_tac P= "\<lambda>y. y < length a \<longrightarrow> (\<exists>em. a ! y = storage_data.Array em \<and> (\<exists>ad bt. em = [storage_data.Value (Address ad), storage_data.Value (Bytes bt)]))" in allE)
@@ -1022,7 +1022,7 @@ proof -
     apply (erule pred_someE)
     apply (erule pred_someE)
     apply (auto simp add: wpsimps while_inv_def allItems_def mupdate_array_typing_value)[1]
-          apply (rule pred_some_copy_memory)
+          apply (rule pred_some_read)
            apply mc+
             apply (simp)
            apply (simp)
@@ -1030,7 +1030,7 @@ proof -
           apply mc
            apply (simp)
           apply (simp)
-         apply (rule pred_some_copy_memory)
+         apply (rule pred_some_read)
           apply mc+
            apply (simp)
           apply (simp)

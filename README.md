@@ -8,7 +8,7 @@ Isabelle/Solidity consists of the following theories:
 
 - `Utils.thy`: A set of general functions and lemmas independent of Solidity.
 - `State_Monad`: A formalizaton of a state monad with exceptions and non-termination. It provides also a new mode sm for the partial function package.
-- `State.thy`: A formalization of the Solidity storage model consisting of definitions for storage, memory, calldata, and stack. In addition it contains several useful functions for the different types of stores such as functions to copy data structures from one store to another.
+- `State.thy`: A formalization of the Solidity storage model consisting of definitions for storage, memory, calldata, and stack. In addition it contains several useful functions for the different types of stores such as functions to read data structures from one store to another.
 - `Solidity.thy`: A formalization of Solidity expressions and statements in terms of our state monad.
 - `WP.thy`: A weakest precondition calculus and corresponding verification condition generator for our Solidity monads.
 - `Unit_tests.thy`: A test suite to validate conformance of the semantics to the original Solidity documentation. The test cases were executed using the [Remix IDE](https://remix.ethereum.org/).

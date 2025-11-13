@@ -283,7 +283,7 @@ definition (in Contract) storeArrayLength::"id \<Rightarrow> ('a::address) expre
     do {
       is \<leftarrow> lfold es;
       sd \<leftarrow> option Err (\<lambda>s. slookup is (state.Storage s this i));
-      storage_check sd
+      storage_disjoined sd
         (K (throw Err))
         (\<lambda>sa. return (rvalue.Value (Uint (of_nat (length (storage_data.ar sd))))))
         (K (throw Err))
@@ -294,7 +294,7 @@ definition (in Contract) storeArrayLengthSafe::"id \<Rightarrow> ('a::address) e
     do {
       is \<leftarrow> lfold es;
       sd \<leftarrow> option Err (\<lambda>s. slookup is (state.Storage s this i));
-      storage_check sd
+      storage_disjoined sd
         (K (throw Err))
         (\<lambda>sa. (if length (storage_data.ar sd) < 2^256 then return (Value (Uint (word_of_nat (length (storage_data.ar sd))))) else throw Err))
         (K (throw Err))
@@ -303,8 +303,8 @@ definition (in Contract) storeArrayLengthSafe::"id \<Rightarrow> ('a::address) e
 
 section \<open>Stack Lookups\<close>
 
-definition stack_check where
-  "stack_check i kf mf cf cp sf sp =
+definition stack_disjoined where
+  "stack_disjoined i kf mf cf cp sf sp =
     do {
       k \<leftarrow> applyf Stack;
       case k $$ i of
@@ -326,7 +326,7 @@ where
   "stackLookup i es =
     do {
       is \<leftarrow> lfold es;
-      stack_check i
+      stack_disjoined i
         (\<lambda>k. return (Value k))
         (\<lambda>p. do {
           l \<leftarrow> option Err (\<lambda>s. mlookup (state.Memory s) is p);
@@ -353,7 +353,7 @@ definition(in Contract) arrayLength::"id \<Rightarrow> ('a::address) expression_
   "arrayLength i es =
     do {
       is \<leftarrow> lfold es;
-      stack_check i
+      stack_disjoined i
         (K (throw Err))
         (\<lambda>p. do {
           l \<leftarrow> option Err (\<lambda>s. mlookup (state.Memory s) is p);
@@ -460,14 +460,14 @@ definition storage_update_monad where
 
 end
 
-definition option_check where
-  "option_check f m = option Err f \<bind> m"
+definition option_disjoined where
+  "option_disjoined f m = option Err f \<bind> m"
 
 fun (in Contract) assign_stack::
   "id \<Rightarrow> ('a::address) valtype list \<Rightarrow> ('a::address) rvalue \<Rightarrow> ('a::address) expression_monad"
 where
   "assign_stack i is (rvalue.Value v) =
-    stack_check i
+    stack_disjoined i
       (K ((modify (stack_update i (kdata.Value v))) \<bind> K (return Empty)))
       (\<lambda>p. (memory_update_monad (\<lambda>m. mvalue_update is (p, (mdata.Value v), m))))
       (K (K (throw Err)))
@@ -475,43 +475,43 @@ where
       (\<lambda>p xs. storage_update_monad xs is (K (storage_data.Value v)) p)
       (throw Err)"
 | "assign_stack i is (rvalue.Memory p) =
-    stack_check i
+    stack_disjoined i
       (K (throw Err))
       (\<lambda>p'. case_list is
         (modify (stack_update i (kdata.Memory p))\<bind> K (return Empty))
         (K (K (memory_update_monad (\<lambda>m. (m$p) \<bind> (\<lambda>v. mvalue_update is (p', v, m)))))))
       (K (K (throw Err)))
       (throw Err)
-      (\<lambda>p' xs. option_check
-        (\<lambda>s. copy_memory_storage (state.Memory s) p)
+      (\<lambda>p' xs. option_disjoined
+        (\<lambda>s. read_storage (state.Memory s) p)
         (\<lambda>sd. storage_update_monad xs is (K sd) p'))
       (throw Err)"
 | "assign_stack i is (rvalue.Calldata (Some \<lparr>Location=p, Offset=xs\<rparr>)) =
-    stack_check i
+    stack_disjoined i
       (K (throw Err))
-      (\<lambda>p'. option_check
+      (\<lambda>p'. option_disjoined
         (\<lambda>s. state.Calldata s $$ p \<bind> clookup xs)
-        (\<lambda>cd. memory_update_monad (mvalue_update is \<circ> (copy_calldata_memory cd p'))))
+        (\<lambda>cd. memory_update_monad (mvalue_update is \<circ> (read_calldata_memory cd p'))))
       (K (K (throw Err)))
       (modify (stack_update i (kdata.Calldata (Some \<lparr>Location=p, Offset= xs\<rparr>))) \<bind> K (return Empty))
-      (\<lambda>p' xs'. option_check
+      (\<lambda>p' xs'. option_disjoined
         (\<lambda>s. state.Calldata s $$ p \<bind> clookup (xs @ is))
-        (\<lambda>cd. storage_update_monad xs' is (K (copy_calldata_storage cd)) p'))
+        (\<lambda>cd. storage_update_monad xs' is (K (read_calldata_storage cd)) p'))
       (throw Err)"
 | "assign_stack i is (rvalue.Calldata None) = throw Err"
 | "assign_stack i is (rvalue.Storage (Some \<lparr>Location=p, Offset=xs\<rparr>)) =
-    stack_check i
+    stack_disjoined i
       (K (throw Err))
-      (\<lambda>p'. option_check
+      (\<lambda>p'. option_disjoined
         (\<lambda>s. slookup xs (state.Storage s this p))
         (\<lambda>sd. memory_update_monad
-          (\<lambda>m. copy_storage_memory sd p' m \<bind>
+          (\<lambda>m. read_storage_memory sd p' m \<bind>
             mvalue_update is)))
       (K (K (throw Err)))
       (throw Err)
       (\<lambda>p' xs'. case_list is
         (modify (stack_update i (kdata.Storage (Some \<lparr>Location=p, Offset= xs\<rparr>))) \<bind> K (return Empty))
-        (K (K (option_check
+        (K (K (option_disjoined
           (\<lambda>s. slookup (xs @ is) (state.Storage s this p))
           (\<lambda>sd. storage_update_monad xs' [] (K sd) p')))))
       (modify (stack_update i (kdata.Storage (Some \<lparr>Location=p, Offset= xs\<rparr>))) \<bind> K (return Empty))"
@@ -535,16 +535,16 @@ section \<open>Storage Assignment\<close>
 fun (in Contract) assign_storage:: "id \<Rightarrow> ('a::address) valtype list \<Rightarrow> ('a::address) rvalue \<Rightarrow> ('a::address) expression_monad" where
   "assign_storage i is (rvalue.Value v) = storage_update_monad [] is (K (storage_data.Value v)) i"
 | "assign_storage i is (rvalue.Memory p) =
-    (option_check
-      (\<lambda>s. copy_memory_storage (state.Memory s) p)
+    (option_disjoined
+      (\<lambda>s. read_storage (state.Memory s) p)
       (\<lambda>sd. storage_update_monad [] is (K sd) i))"
 | "assign_storage i is (rvalue.Calldata (Some \<lparr>Location=p, Offset=xs\<rparr>)) =
-    (option_check
+    (option_disjoined
       (\<lambda>s. state.Calldata s $$ p \<bind> clookup xs)
-      (\<lambda>cd. storage_update_monad [] is (K (copy_calldata_storage cd)) i))"
+      (\<lambda>cd. storage_update_monad [] is (K (read_calldata_storage cd)) i))"
 | "assign_storage i is (rvalue.Calldata None) = throw Err"
 | "assign_storage i is (rvalue.Storage (Some \<lparr>Location=p, Offset=xs\<rparr>)) =
-    (option_check
+    (option_disjoined
       (\<lambda>s. slookup xs (state.Storage s this p))
       (\<lambda>sd. storage_update_monad [] is (K sd) i))"
 | "assign_storage i is (rvalue.Storage None) = throw Err"
@@ -812,8 +812,8 @@ lemma length_array[simp]: "length (array x y) = x"
   by simp
 
 
-lemma fold_map_minit_replicate_length:
-  assumes "fold_map Memory.minit (replicate n (adata.Value v)) m = (x1, x2)"
+lemma fold_map_write_replicate_length:
+  assumes "fold_map Memory.write (replicate n (adata.Value v)) m = (x1, x2)"
     shows "length x1 = n"
   using assms
 proof (induction n arbitrary: x1 m)
@@ -822,7 +822,7 @@ proof (induction n arbitrary: x1 m)
 next
   case (Suc n)
   from Suc.prems obtain x1a
-    where *: "fold_map Memory.minit (replicate n (adata.Value v)) (m @ [mdata.Value v]) = (x1a, x2)"
+    where *: "fold_map Memory.write (replicate n (adata.Value v)) (m @ [mdata.Value v]) = (x1a, x2)"
       and **:"x1 = length m # x1a"
     by (auto simp add: array_def length_append_def split:prod.split_asm)
   then show ?case
@@ -835,8 +835,8 @@ next
   qed
 qed
 
-lemma fold_map_minit_replicate_value:
-  assumes "fold_map Memory.minit (replicate n (adata.Value (Uint 0))) m = (x1, x2)"
+lemma fold_map_write_replicate_value:
+  assumes "fold_map Memory.write (replicate n (adata.Value (Uint 0))) m = (x1, x2)"
       and "x < n"
     shows "x1 ! x < length x2 \<and> (\<exists>ix. x2 ! (x1 ! x) = mdata.Value (Uint ix))"
   using assms
@@ -847,7 +847,7 @@ next
   case (Suc n)
   from Suc.prems
     obtain x1a
-      where *: "fold_map Memory.minit (replicate n (adata.Value (Uint 0))) (m @ [mdata.Value (Uint 0)]) = (x1a, x2)"
+      where *: "fold_map Memory.write (replicate n (adata.Value (Uint 0))) (m @ [mdata.Value (Uint 0)]) = (x1a, x2)"
         and **:"x1 = length m # x1a"
       by (simp add: length_append_def split:prod.split_asm)
   then show ?case
@@ -862,7 +862,7 @@ next
       moreover from False
         have "(replicate n (adata.Value (Uint 0))) \<noteq> []" by auto
       then have "sprefix (m @ [mdata.Value (Uint 0)]) x2"
-        using minit_fold_map_sprefix[of "(replicate n (adata.Value (Uint 0)))" " (m @ [mdata.Value (Uint 0)])"]
+        using write_fold_map_sprefix[of "(replicate n (adata.Value (Uint 0)))" " (m @ [mdata.Value (Uint 0)])"]
         unfolding sprefix_def using * by simp
       ultimately show ?thesis unfolding sprefix_def
         using ** sprefix_def by (auto simp add: array_def length_append_def split:prod.split_asm)
@@ -876,21 +876,21 @@ next
   qed
 qed
 
-lemma minit_array_typing_value:
-  assumes "Memory.minit (adata.Array (array (unat si) (adata.Value (Uint 0)))) [] = (x1, x2)"
+lemma write_array_typing_value:
+  assumes "Memory.write (adata.Array (array (unat si) (adata.Value (Uint 0)))) [] = (x1, x2)"
     shows "x1<length x2 \<and> (\<exists>ma0. x2 ! x1 = mdata.Array ma0 \<and> (\<forall>i<length ma0. (ma0 ! i) < length x2 \<and> (\<exists>ix. x2 ! (ma0 ! i) = mdata.Value (Uint ix))))"
 proof -
   from assms obtain x1a x2a
-    where *:"fold_map Memory.minit (replicate (unat si) (adata.Value (Uint 0))) [] = (x1a, x2a)"
+    where *:"fold_map Memory.write (replicate (unat si) (adata.Value (Uint 0))) [] = (x1a, x2a)"
       and "x1 = length x2a"
       and "x2 = x2a @ [mdata.Array x1a]"
     by (simp add: array_def length_append_def split:prod.split_asm)
   moreover have "(\<forall>i<length x1a. (x1a ! i) < length x2a \<and> (\<exists>ix. x2 ! (x1a ! i) = mdata.Value (Uint ix)))"
   proof (rule allI, rule impI)
     fix i assume "i < length x1a"
-    moreover have "length x1a = unat si" using fold_map_minit_replicate_length[OF *] by simp
+    moreover have "length x1a = unat si" using fold_map_write_replicate_length[OF *] by simp
     ultimately show "(x1a ! i) < length x2a \<and> (\<exists>ix. x2 ! (x1a ! i) = mdata.Value (Uint ix))"
-      using fold_map_minit_replicate_value[OF *, of i]
+      using fold_map_write_replicate_value[OF *, of i]
       by (simp add: \<open>x2 = x2a @ [mdata.Array x1a]\<close> nth_append_left)
   qed
   ultimately show ?thesis by auto
@@ -944,8 +944,8 @@ definition kinit::"('a::address valtype) kdata \<Rightarrow> id \<Rightarrow> ('
 definition init::"('a::address) valtype \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
   "init \<equiv> kinit \<circ> kdata.Value"
 
-definition minit::"('a::address valtype) adata \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
-  "minit c i \<equiv> update (\<lambda>s. let (l,m) = Memory.minit c (state.Memory s) in (Empty, s\<lparr>Stack := fmupd i (kdata.Memory l) (Stack s), Memory := m\<rparr>))"
+definition "write"::"('a::address valtype) adata \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
+  "write c i \<equiv> update (\<lambda>s. let (l,m) = Memory.write c (state.Memory s) in (Empty, s\<lparr>Stack := fmupd i (kdata.Memory l) (Stack s), Memory := m\<rparr>))"
 
 definition cinit::"('a::address valtype) call_data \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
   "cinit c i \<equiv> modify (calldata_update i c \<circ> stack_update i (kdata.Calldata (Some \<lparr>Location=i,Offset= []\<rparr>))) \<bind> K (return Empty)"
@@ -1029,14 +1029,14 @@ subsection \<open>Memory Variables\<close>
   This should be used in user code
 *)
 definition mdecl::"CType \<Rightarrow> id \<Rightarrow> ('a::address) expression_monad" where
-  "mdecl = minit \<circ> cdefault"
+  "mdecl = write \<circ> cdefault"
 
 definition create_memory_array where
   "create_memory_array i t sm =
     do {
       s \<leftarrow> sm;
       (case s of
-        rvalue.Value (Uint s') \<Rightarrow> minit (adata.Array (array (unat s') (cdefault t))) i
+        rvalue.Value (Uint s') \<Rightarrow> write (adata.Array (array (unat s') (cdefault t))) i
       | _ \<Rightarrow> throw Err)
     }"
 

@@ -80,7 +80,7 @@ setup_lifting q
 
 code_datatype call_data.Value call_data.Array
 
-lift_definition minit :: "'v call_data \<Rightarrow> 'v memory \<Rightarrow> nat \<times> 'v memory" is Memory.minit .
+lift_definition "write" :: "'v call_data \<Rightarrow> 'v memory \<Rightarrow> nat \<times> 'v memory" is Memory.write .
 lift_definition clookup :: "'v::vtype list \<Rightarrow> 'v call_data \<Rightarrow> 'v call_data option" is Memory.alookup .
 
 context includes lifting_syntax begin
@@ -154,11 +154,11 @@ lemma nth_safe_transfer[transfer_rule]: "(list_all2 ((pcr_call_data (=))) ===> (
 
 end
 
-lemma x[simp,code]: "minit (call_data.Value x) m = length_append m (mdata.Value x)"
+lemma x[simp,code]: "write (call_data.Value x) m = length_append m (mdata.Value x)"
   apply transfer
   by simp
 
-lemma y[simp,code]: "minit (call_data.Array ds) m = (let (ns, m') = fold_map minit ds m in (length_append m' (mdata.Array ns)))"
+lemma y[simp,code]: "write (call_data.Array ds) m = (let (ns, m') = fold_map write ds m in (length_append m' (mdata.Array ns)))"
   apply transfer
   by auto
 
@@ -176,13 +176,13 @@ lemma xxx[simp,code]:
  "clookup (v # va) (call_data.Value vb) = None"
   apply transfer by simp
 
-lemma minit_length_inc: "length (snd (minit cd m0)) > length m0"
-  apply transfer using minit_length_inc by blast
+lemma write_length_inc: "length (snd (write cd m0)) > length m0"
+  apply transfer using write_length_inc by blast
 
-corollary minit_loc:
-  assumes "minit cd m0 = (l, m)"
+corollary write_loc:
+  assumes "write cd m0 = (l, m)"
   shows "s_union_fs (loc m) (loc m0) (alocs m l)"
-  using assms apply transfer using minit_loc by blast
+  using assms apply transfer using write_loc by blast
 
 section \<open>Storage\<close>
 
@@ -191,7 +191,7 @@ datatype 'v storage_data =
 | is_Array: Array (ar: "'v storage_data list")
 | is_Map: Map (mp: "'v \<Rightarrow> 'v storage_data")
 
-abbreviation storage_check where "storage_check sd vf af mf \<equiv> case_storage_data vf af mf sd"
+abbreviation storage_disjoined where "storage_disjoined sd vf af mf \<equiv> case_storage_data vf af mf sd"
 
 section \<open>Storage Lookup\<close>
 
@@ -216,16 +216,16 @@ fun updateStore :: "('v::vtype) list \<Rightarrow> ('v storage_data \<Rightarrow
 
 subsection \<open>Copy from Calldata to Memory\<close>
 
-fun copy_calldata_memory :: "'v call_data \<Rightarrow> location \<Rightarrow> 'v memory \<Rightarrow> (location \<times> 'v mdata \<times> 'v memory)" where
-  "copy_calldata_memory (call_data.Value x) p m = (p, mdata.Value x, m)"
-| "copy_calldata_memory (call_data.Array ds) p m =
-      (let (ns, m') = fold_map minit ds m in (p, mdata.Array ns, m'))"
+fun read_calldata_memory :: "'v call_data \<Rightarrow> location \<Rightarrow> 'v memory \<Rightarrow> (location \<times> 'v mdata \<times> 'v memory)" where
+  "read_calldata_memory (call_data.Value x) p m = (p, mdata.Value x, m)"
+| "read_calldata_memory (call_data.Array ds) p m =
+      (let (ns, m') = fold_map write ds m in (p, mdata.Array ns, m'))"
 
 subsection \<open>Copy from Calldata to Storage\<close>
 
-fun copy_calldata_storage :: "'v call_data \<Rightarrow> 'v storage_data" where
-  "copy_calldata_storage (call_data.Value v) = storage_data.Value v"
-| "copy_calldata_storage (call_data.Array xs) = storage_data.Array (map copy_calldata_storage xs)"
+fun read_calldata_storage :: "'v call_data \<Rightarrow> 'v storage_data" where
+  "read_calldata_storage (call_data.Value v) = storage_data.Value v"
+| "read_calldata_storage (call_data.Array xs) = storage_data.Array (map read_calldata_storage xs)"
 
 subsection \<open>Copy from Storage to Memory\<close>
 
@@ -245,16 +245,16 @@ fun convert :: "'v storage_data \<Rightarrow> 'v call_data option" where
 | "convert (storage_data.Array ds) = those (map convert ds) \<bind> Some \<circ> call_data.Array"
 | "convert _ = None"
 
-definition copy_storage_memory :: "'v storage_data \<Rightarrow> location \<Rightarrow> 'v memory \<Rightarrow> (location \<times> 'v mdata \<times> 'v memory) option" where
-  "copy_storage_memory sd p m =
+definition read_storage_memory :: "'v storage_data \<Rightarrow> location \<Rightarrow> 'v memory \<Rightarrow> (location \<times> 'v mdata \<times> 'v memory) option" where
+  "read_storage_memory sd p m =
     do {
       cd \<leftarrow> convert sd;
-      Some (copy_calldata_memory cd p m)
+      Some (read_calldata_memory cd p m)
     }"
 
 global_interpretation storage_data: data storage_data.Value storage_data.Array
-  defines copy_memory_storage_safe = storage_data.copy_safe
-      and copy_memory_storage = storage_data.copy
+  defines read_storage_safe = storage_data.read_safe
+      and read_storage = storage_data.read
       and locs_storage_safe = storage_data.locs_safe
       and locs_storage = storage_data.locs
   .

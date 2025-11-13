@@ -130,7 +130,7 @@ lemma (in Contract)
       and "unat i < 5"
     shows
          "wp (do {
-            minit x (STR ''x'');
+            write x (STR ''x'');
             assign_stack_monad (STR ''x'') [sint_monad i] (sint_monad y)
           })
           (pred_memory (STR ''x'')
@@ -141,7 +141,7 @@ lemma (in Contract)
           s"
   apply wp+
   apply (auto simp add: pred_memory_def)
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply mc+
   apply (rule conjI)
   using assms apply (auto simp add:alookup.simps split:nat.split)[1]
@@ -168,9 +168,9 @@ definition P where "P i j s \<equiv> (case (Stack s) $$ (STR ''x'') of
               Some (kdata.Memory l') \<Rightarrow>
                 (pred_some
                   (\<lambda>cd'. (\<forall>i'<5. i' \<noteq> i \<longrightarrow> alookup [Uint (word_of_nat i), Uint  (word_of_nat i')] cd = Some (the (alookup [Uint (word_of_nat j), Uint  (word_of_nat i')] cd'))))
-                  (acopy (State.Memory s) l'))
+                  (aread (State.Memory s) l'))
              | _ \<Rightarrow> False)
-            (acopy (State.Memory s) l)
+            (aread (State.Memory s) l)
       | _ \<Rightarrow> False)"
 
 lemma assign2:
@@ -264,8 +264,8 @@ lemma (in Contract)
     and "j < 5"
   shows
      "wp (do {
-        minit x (STR ''x'');
-        minit y (STR ''y'');
+        write x (STR ''x'');
+        write y (STR ''y'');
         assign_stack_monad (STR ''x'') [sint_monad (word_of_nat i)] (stackLookup (STR ''y'') [sint_monad (word_of_nat j)])
       })
       (\<lambda>_. P i j)
@@ -273,13 +273,13 @@ lemma (in Contract)
       s"
   apply wp+
   apply auto
-  apply (drule is_Array_minit, simp, simp)
+  apply (drule is_Array_write, simp, simp)
   using dlookup_array2[OF assms(2,4)] apply auto[2]
   apply wp+
   unfolding P_def apply auto
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply mc+
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply mc+
   using dlookup_array2[OF assms(1,3)] apply auto[1]
   apply mc+
@@ -420,8 +420,8 @@ lemma (in Contract)
       and "k < 5"
     shows
      "wp (do {
-        minit x (STR ''x'');
-        minit y (STR ''y'');
+        write x (STR ''x'');
+        write y (STR ''y'');
         assign_stack_monad (STR ''x'') [sint_monad (word_of_nat i)] (stackLookup (STR ''y'') [sint_monad (word_of_nat j)]);
         assign_stack_monad (STR ''y'') [sint_monad (word_of_nat j), sint_monad (word_of_nat k)] (sint_monad l)
       })
@@ -430,7 +430,7 @@ lemma (in Contract)
       s"
   apply wp+
   apply (auto)
-  apply (drule is_Array_minit, simp, simp)
+  apply (drule is_Array_write, simp, simp)
   using dlookup_array2[OF assms(2,4)] apply auto[2]
   apply wp+
   apply (auto simp add: pred_memory_def)
@@ -455,7 +455,7 @@ lemma (in Contract)
   using dlookup_array2[OF assms(1,3)] apply auto[1]
   apply mc+
   using dlookup_array2[OF assms(1,3)] apply auto[1]
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply mc+
   using assign3[OF assms] by blast
 
@@ -506,8 +506,8 @@ lemma (in Contract)
       and "k < 5"
     shows
      "wp (do {
-        minit x (STR ''x'');
-        minit y (STR ''y'');
+        write x (STR ''x'');
+        write y (STR ''y'');
         assign_stack_monad (STR ''x'') [sint_monad (word_of_nat i)] (stackLookup (STR ''y'') [sint_monad (word_of_nat j)]);
         assign_stack_monad (STR ''x'') [sint_monad (word_of_nat i), sint_monad (word_of_nat k)] (sint_monad l)
       })
@@ -516,7 +516,7 @@ lemma (in Contract)
       s"
   apply wp+
   apply (auto)
-  apply (drule is_Array_minit, simp, simp)
+  apply (drule is_Array_write, simp, simp)
   using dlookup_array2[OF assms(2,4)] apply auto[2]
   apply wp+
   apply (auto simp add: pred_memory_def)
@@ -541,7 +541,7 @@ lemma (in Contract)
   using dlookup_array2[OF assms(1,3)] apply auto[1]
   apply mc+
   using dlookup_array2[OF assms(1,3)] apply auto[1]
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply mc+
   using dlookup_array2[OF assms(1,3)] apply auto[1]
   apply mc+
@@ -770,9 +770,9 @@ lemma (in Contract)
       and "n < 5"
     shows
      "wp (do {
-        minit x (STR ''x'');
-        minit y (STR ''y'');
-        minit z (STR ''z'');
+        write x (STR ''x'');
+        write y (STR ''y'');
+        write z (STR ''z'');
         assign_stack_monad (STR ''x'') [sint_monad (word_of_nat i)] (stackLookup (STR ''y'') [sint_monad (word_of_nat j)]);
         assign_stack_monad (STR ''y'') [sint_monad (word_of_nat j), sint_monad (word_of_nat k)] (stackLookup (STR ''z'') [sint_monad (word_of_nat l), sint_monad (word_of_nat m)]);
         assign_stack_monad (STR ''z'') [sint_monad (word_of_nat l), sint_monad (word_of_nat m), sint_monad (word_of_nat n)] (sint_monad p)
@@ -796,7 +796,7 @@ lemma (in Contract)
   apply (drule_tac ?xs1.0 = "[Uint (word_of_nat l), Uint (word_of_nat m)]" and ?l1.0=laa and ?l2.0=x1 in aliasing, simp, simp)
   apply (mc lookup: dlookup_array3[OF assms(2,5)] dlookup_array3[OF assms(1,4)] dlookup_array4[OF assms(3,7,8)] dlookup_array4[OF assms(2,5,6)] dlookup_array4[OF assms(1,4,6)])+
 
-  apply (rule pred_some_copy_memory)
+  apply (rule pred_some_read)
   apply (mc lookup: dlookup_array3[OF assms(2,5)] dlookup_array3[OF assms(1,4)] dlookup_array4[OF assms(3,7,8)] dlookup_array4[OF assms(2,5,6)] dlookup_array4[OF assms(1,4,6)])+
   defer
   apply (erule isValue_isArray_all, assumption, assumption)

@@ -618,12 +618,12 @@ lemma wp_decl[wprules]:
   shows "wp (decl t i) P E s"
   unfolding decl_def using assms by simp
 
-lemma wp_minit[wprules]:
+lemma wp_write[wprules]:
   assumes "\<And>x1 x2.
-       Memory.minit c (state.Memory s) = (x1, x2) \<Longrightarrow>
+       Memory.write c (state.Memory s) = (x1, x2) \<Longrightarrow>
        P Empty (s\<lparr>Stack := Stack s(i $$:= kdata.Memory x1), Memory := x2\<rparr>)"
-    shows "wp (minit c i) P E s"
-  unfolding minit_def wp_def using assms by (auto simp add:wpsimps execute_simps split: prod.split)
+    shows "wp (write c i) P E s"
+  unfolding write_def wp_def using assms by (auto simp add:wpsimps execute_simps split: prod.split)
 
 lemma wp_sinit[wprules]:
   assumes "P Empty (stack_update i (kdata.Storage None) s)"
@@ -688,7 +688,7 @@ lemma (in Contract) wp_assign_storage_monad[wprules]:
 
 lemma (in Contract) wp_stackLookup[wprules]:
   assumes "wp (lfold es)
-     (\<lambda>a. wp (stack_check x (\<lambda>k. return (rvalue.Value k))
+     (\<lambda>a. wp (stack_disjoined x (\<lambda>k. return (rvalue.Value k))
                 (\<lambda>p. option Err (\<lambda>s. mlookup (state.Memory s) a p) \<bind>
                       (\<lambda>l. option Err (\<lambda>s. state.Memory s $ l) \<bind>
                             (\<lambda>md. if mdata.is_Value md then return (rvalue.Value (mdata.vt md))
@@ -748,8 +748,8 @@ lemma wp_stackCheck[wprules]:
       and "Stack s $$ i = None \<Longrightarrow> E Err s"
       and "Stack s $$ i = Some (kdata.Storage None) \<Longrightarrow> wp sp P E s"
       and "Stack s $$ i = Some (kdata.Calldata None) \<Longrightarrow> wp cp P E s"
-    shows "wp (stack_check i kf mf cf cp sf sp) P E s"
-  unfolding wp_def stack_check_def
+    shows "wp (stack_disjoined i kf mf cf cp sf sp) P E s"
+  unfolding wp_def stack_disjoined_def
   apply (simp add:execute_simps applyf_def get_def return_def bind_def)
   apply (cases "Stack s $$ i")
   apply (auto simp add:execute_simps)
@@ -780,7 +780,7 @@ lemma (in Contract) post_wp:
 lemma (in Contract) wp_storeArrayLength[wprules]:
   assumes "wp (lfold xs)
      (\<lambda>a. wp (option Err (\<lambda>s. slookup a (state.Storage s this v)) \<bind>
-              (\<lambda>sd. storage_check sd (K (throw Err)) (\<lambda>sa. return (rvalue.Value (Uint (word_of_nat (length (storage_data.ar sd)))))) (K (throw Err))))
+              (\<lambda>sd. storage_disjoined sd (K (throw Err)) (\<lambda>sa. return (rvalue.Value (Uint (word_of_nat (length (storage_data.ar sd)))))) (K (throw Err))))
            P E)
      E s"
   shows "wp (storeArrayLength v xs) P E s"
@@ -790,7 +790,7 @@ lemma (in Contract) wp_storeArrayLength[wprules]:
 lemma (in Contract) wp_storeArrayLengthSafe[wprules]:
   assumes "wp (lfold xs)
      (\<lambda>a. wp (option Err (\<lambda>s. slookup a (state.Storage s this v)) \<bind>
-              (\<lambda>sd. storage_check sd (K (throw Err))
+              (\<lambda>sd. storage_disjoined sd (K (throw Err))
                      (\<lambda>sa. if length (storage_data.ar sd) < 2 ^ 256
                            then return (rvalue.Value (Uint (word_of_nat (length (storage_data.ar sd))))) else throw Err)
                      (K (throw Err))))
@@ -802,7 +802,7 @@ lemma (in Contract) wp_storeArrayLengthSafe[wprules]:
 
 lemma (in Contract) wp_arrayLength[wprules]:
   assumes "wp (lfold xs)
-     (\<lambda>a. wp (stack_check v (K (throw Err))
+     (\<lambda>a. wp (stack_disjoined v (K (throw Err))
                 (\<lambda>p. option Err (\<lambda>s. mlookup (state.Memory s) a p) \<bind>
                       (\<lambda>l. option Err (\<lambda>s. state.Memory s $ l) \<bind>
                             (\<lambda>md. if mdata.is_Array md
@@ -823,21 +823,21 @@ lemma (in Contract) wp_arrayLength[wprules]:
   unfolding arrayLength_def apply vcg using assms by simp
 
 (*
-TODO: Double check
+TODO: Double disjoined
 *)
 lemma (in Contract) wp_storearrayLength[wprules]:
   assumes "slookup [] (state.Storage s this STR ''proposals'') = None \<Longrightarrow> E Err s"
- and "wp (storage_check (state.Storage s this STR ''proposals'') (K (throw Err))
+ and "wp (storage_disjoined (state.Storage s this STR ''proposals'') (K (throw Err))
          (\<lambda>sa. return (rvalue.Value (Uint (word_of_nat (length (storage_data.ar (state.Storage s this STR ''proposals''))))))) (K (throw Err)))
      P E s"
   shows "wp (storeArrayLength STR ''proposals'' []) P E s"
   unfolding storeArrayLength_def apply vcg using assms apply simp apply vcg done
 
-lemma (in Contract) wp_storage_check[wprules]:
+lemma (in Contract) wp_storage_disjoined[wprules]:
   assumes "\<And>v. sd = storage_data.Value v \<Longrightarrow> wp (vf v) P E s"
      and "\<And>a. sd = storage_data.Array a \<Longrightarrow> wp (af a) P E s"
      and "\<And>m. sd = storage_data.Map m \<Longrightarrow> wp (mf m) P E s"
-  shows "wp (storage_check sd vf af mf) P E s"
+  shows "wp (storage_disjoined sd vf af mf) P E s"
   using assms apply (cases sd) by (simp add:wpsimps)+
 
 lemma (in Contract) wp_allocate[wprules]:
@@ -853,7 +853,7 @@ lemma (in Contract) wp_create_memory_array[wprules]:
   assumes "wp sm
      (\<lambda>a. wp (case a of
               rvalue.Value (Uint s') \<Rightarrow>
-                Solidity.minit (adata.Array (array (unat s') (cdefault t))) i
+                Solidity.write (adata.Array (array (unat s') (cdefault t))) i
               | rvalue.Value _ \<Rightarrow> throw Err | _ \<Rightarrow> throw Err)
            P E)
      E s"
@@ -886,12 +886,12 @@ lemma (in Contract) wp_assign_stack_kdvalue[wprules]:
           wp (modify (stack_update i (kdata.Value v)) \<bind> (\<lambda>a. return Empty)) P E s"
       and "\<And>a. Stack s $$ i = Some (kdata.Calldata (Some a)) \<Longrightarrow> E Err s"
     shows "wp (assign_stack i is (rvalue.Value v)) P E s"
-  apply (vcg | auto simp add:assms stack_check_def)+
+  apply (vcg | auto simp add:assms stack_disjoined_def)+
   using assms apply blast
-  by (vcg | auto simp add:assms stack_check_def)+
+  by (vcg | auto simp add:assms stack_disjoined_def)+
 declare(in Contract) wp_stackCheck[wprules]
 
-declare minit.simps [simp del]
+declare write.simps [simp del]
 declare mvalue_update.simps [simp del]
 declare mlookup.simps [simp del]
 declare alookup.simps [simp del]

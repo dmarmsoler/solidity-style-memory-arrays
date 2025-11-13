@@ -1773,19 +1773,19 @@ qed
 
 section \<open>Copy from Memory\<close>
 
-function copy_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> 'd option" where
-  "copy_safe s m l = 
+function read_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> 'd option" where
+  "read_safe s m l = 
    (if l |\<in>| s then None else
       case_memory m l
         (\<lambda>v. Some (Value v))
-        (\<lambda>xs. those (map (copy_safe (finsert l s) m) xs) \<bind> Some \<circ> Array))"
+        (\<lambda>xs. those (map (read_safe (finsert l s) m) xs) \<bind> Some \<circ> Array))"
 by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(s,m,_). card ({0..length m} - fset s))")
   using card_less_card by auto
 
-lemma copy_memory_safe_cases:
-  assumes "copy_safe s m l = Some c"
+lemma read_safe_cases:
+  assumes "read_safe s m l = Some c"
   obtains (basic) v
     where "m $ l = Some (mdata.Value v)"
       and "l |\<notin>| s"
@@ -1793,45 +1793,45 @@ lemma copy_memory_safe_cases:
     | (array) xs as
     where "l |\<notin>| s"
       and "m $ l = Some (mdata.Array xs)"
-      and "those (map (copy_safe (finsert l s) m) xs) = Some as"
+      and "those (map (read_safe (finsert l s) m) xs) = Some as"
       and "c = Array as"
   using assms
   apply (cases "m $ l", auto split:if_split_asm mdata.split_asm simp add:case_memory_def)
-  by (case_tac "those (map (copy_safe (finsert l s) m) x2)") auto
+  by (case_tac "those (map (read_safe (finsert l s) m) x2)") auto
 
-lemma copy_memory_safe_array:
+lemma read_safe_array:
   assumes "m0 $ l1 = Some (mdata.Array ls)"
-      and "copy_safe s m0 l1 = Some cd1"
+      and "read_safe s m0 l1 = Some cd1"
       and "ls $ i' = Some l''"
-      and cd'_def: "copy_safe (finsert l1 s) m0 l'' = Some cd'"
+      and cd'_def: "read_safe (finsert l1 s) m0 l'' = Some cd'"
   obtains cs
     where "cd1 = Array cs"
       and "cs $ i' = Some cd'"
       and "length cs = length ls"
   using assms
   apply (auto simp add:case_memory_def split:if_split_asm)
-  apply (case_tac "those (map (copy_safe (finsert l1 s) m0) ls)",auto)
+  apply (case_tac "those (map (read_safe (finsert l1 s) m0) ls)",auto)
   by (metis (no_types, lifting) bind.bind_lunit cd'_def map_eq_imp_length_eq those_map_nth those_some_map)
 
-lemma copy_memory_safe_update_value:
-  assumes "copy_safe s m l = Some cd"
+lemma read_safe_update_value:
+  assumes "read_safe s m l = Some cd"
       and "m' = m[l' := mdata.Value v]"
-    shows "\<exists>cd'. copy_safe s m' l = Some cd'"
+    shows "\<exists>cd'. read_safe s m' l = Some cd'"
 proof -
   {fix s
     have
-      "\<forall>cd m'. copy_safe s m l = Some cd \<longrightarrow> m' = m[l' := mdata.Value v]
-       \<longrightarrow> (\<exists>cd'. copy_safe s m' l = Some cd')" (is "?P s m l")
-  proof (induction rule:copy_safe.induct[where ?P="?P"])
+      "\<forall>cd m'. read_safe s m l = Some cd \<longrightarrow> m' = m[l' := mdata.Value v]
+       \<longrightarrow> (\<exists>cd'. read_safe s m' l = Some cd')" (is "?P s m l")
+  proof (induction rule:read_safe.induct[where ?P="?P"])
     case i: (1 s m' l)
     show ?case
     proof (rule, rule, rule, rule)
       fix cd m''
-      assume 1: "copy_safe s m' l = Some cd"
+      assume 1: "read_safe s m' l = Some cd"
          and 2: "m'' = m'[l' := mdata.Value v]"
       from 1 
-      show "\<exists>cd'. copy_safe s m'' l = Some cd'"
-      proof (cases rule: copy_memory_safe_cases)
+      show "\<exists>cd'. read_safe s m'' l = Some cd'"
+      proof (cases rule: read_safe_cases)
         case (basic v)
         then show ?thesis
         proof (cases "l=l'")
@@ -1856,16 +1856,16 @@ proof -
           case False
           then have "m'' $ l = Some (mdata.Array xs)"
             using array(2) 2 unfolding nth_safe_def by (auto split:if_split_asm)
-          moreover have "\<exists>as. those (map (copy_safe (finsert l s) m'') xs) = Some as"
+          moreover have "\<exists>as. those (map (read_safe (finsert l s) m'') xs) = Some as"
           proof -
             have "\<forall>x cd. x \<in> set xs \<and>
-             copy_safe (finsert l s) m' x = Some cd \<longrightarrow>
-             (\<exists>cd'. copy_safe (finsert l s) m'' x = Some cd')"
+             read_safe (finsert l s) m' x = Some cd \<longrightarrow>
+             (\<exists>cd'. read_safe (finsert l s) m'' x = Some cd')"
             using i[OF array(1,2)] 2 by blast
-            then have "\<forall>x. x \<in> set xs \<longrightarrow> (\<exists>cd'. copy_safe (finsert l s) m'' x = Some cd')"
+            then have "\<forall>x. x \<in> set xs \<longrightarrow> (\<exists>cd'. read_safe (finsert l s) m'' x = Some cd')"
               using those_map_none[OF array(3)] by simp
             then show ?thesis
-              using those_map_some_some[of xs "copy_safe (finsert l s) m''"] by auto
+              using those_map_some_some[of xs "read_safe (finsert l s) m''"] by auto
           qed
           ultimately show ?thesis using array(1)
             by (auto simp add: case_memory_def)
@@ -1876,12 +1876,12 @@ proof -
   then show ?thesis using assms by metis
 qed
 
-lemma copy_memory_safe_subset_same:
-  assumes "copy_safe s m l = Some x"
+lemma read_safe_subset_same:
+  assumes "read_safe s m l = Some x"
     and "s' |\<subseteq>| s"
-  shows "copy_safe s' m l = Some x"
+  shows "read_safe s' m l = Some x"
   using assms
-proof (induction arbitrary: s x rule:copy_safe.induct)
+proof (induction arbitrary: s x rule:read_safe.induct)
   case (1 s' m l)
   show ?case
     apply (auto split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)
@@ -1891,26 +1891,26 @@ proof (induction arbitrary: s x rule:copy_safe.induct)
     apply (case_tac "a") apply auto
     using 1 apply (auto split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
     using 1(1)[of _ _ "finsert l s"] 1(2) 1(3)
-    apply (auto simp del: copy_safe.simps split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
-    by (smt (verit) "1.IH" bind_eq_Some_conv comp_apply data.copy_memory_safe_cases finsert_mono mdata.distinct(1)
+    apply (auto simp del: read_safe.simps split:if_split_asm option.split_asm mdata.split_asm simp add: case_memory_def)[1]
+    by (smt (verit) "1.IH" bind_eq_Some_conv comp_apply data.read_safe_cases finsert_mono mdata.distinct(1)
         mdata.inject(2) option.inject those_map_eq those_map_none)
 qed
 
-lemma copy_memory_safe_some_same:             
+lemma read_safe_some_same:             
   assumes "m $ l1 = m $ l2"
-      and "copy_safe s1 m l1 = Some cd1"
-      and "copy_safe s2 m l2 = Some cd2"
+      and "read_safe s1 m l1 = Some cd1"
+      and "read_safe s2 m l2 = Some cd2"
     shows "cd1 = cd2"
   using assms
-proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_safe.induct)
+proof (induction arbitrary: s2 cd1 cd2 l2 rule:read_safe.induct)
   case (1 s1 m l1)
   from 1(3)
   show ?case
-  proof (cases rule: copy_memory_safe_cases)
+  proof (cases rule: read_safe_cases)
     case basic1: (basic v1)
     from 1(4)
     show ?thesis
-    proof (cases rule: copy_memory_safe_cases)
+    proof (cases rule: read_safe_cases)
       case _: (basic v2)
       then show ?thesis using basic1(1,3) 1(2) by simp
     next
@@ -1922,36 +1922,36 @@ proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_safe.induct)
     then have
       IH:"\<And>x cd1 s2 l2 cd2.
         x \<in> set xs1
-        \<Longrightarrow> copy_safe (finsert l1 s1) m x = Some cd1
-        \<Longrightarrow> copy_safe s2 m l2 = Some cd2
+        \<Longrightarrow> read_safe (finsert l1 s1) m x = Some cd1
+        \<Longrightarrow> read_safe s2 m l2 = Some cd2
         \<Longrightarrow> m $ x = m $ l2
         \<Longrightarrow> cd1 = cd2"
       using 1(1) by blast
     from 1(4)
     show ?thesis
-    proof (cases rule: copy_memory_safe_cases)
+    proof (cases rule: read_safe_cases)
       case (basic v2)
       then show ?thesis using array1(2) 1(2) by simp
     next
       case array2: (array xs2 as2)
       then have "xs1 = xs2" using 1(2) array1(2) by simp
       moreover have
-        "those (map (copy_safe (finsert l1 s1) m) xs1)
-         = those (map (copy_safe (finsert l2 s2) m) xs1)"
+        "those (map (read_safe (finsert l1 s1) m) xs1)
+         = those (map (read_safe (finsert l2 s2) m) xs1)"
       proof (rule those_map_eq)
-        show "\<forall>x\<in>set xs1. \<forall>y. copy_safe (finsert l1 s1) m x = Some y
-          \<longrightarrow> copy_safe (finsert l2 s2) m x = Some y"
+        show "\<forall>x\<in>set xs1. \<forall>y. read_safe (finsert l1 s1) m x = Some y
+          \<longrightarrow> read_safe (finsert l2 s2) m x = Some y"
         proof (rule, rule, rule)
           fix x y
           assume "x \<in> set xs1"
-             and "copy_safe (finsert l1 s1) m x = Some y"
-          moreover obtain cd where "copy_safe (finsert l2 s2) m x = Some cd" 
+             and "read_safe (finsert l1 s1) m x = Some y"
+          moreover obtain cd where "read_safe (finsert l2 s2) m x = Some cd" 
             using those_map_none[OF array2(3)] \<open>xs1 = xs2\<close> \<open>x \<in> set xs1\<close> by auto
-          ultimately show "copy_safe (finsert l2 s2) m x = Some y"
+          ultimately show "read_safe (finsert l2 s2) m x = Some y"
             using IH[of x y "(finsert l2 s2)" x] by auto
         qed
       next
-        show "\<forall>x\<in>set xs1. copy_safe (finsert l1 s1) m x \<noteq> None"
+        show "\<forall>x\<in>set xs1. read_safe (finsert l1 s1) m x \<noteq> None"
           using those_map_none[OF array1(3)] by blast
       qed
       ultimately have "Array as1 = Array as2" using array1(3) array2(3) by simp
@@ -1960,19 +1960,19 @@ proof (induction arbitrary: s2 cd1 cd2 l2 rule:copy_safe.induct)
   qed
 qed
 
-lemma copy_memory_safe_prefix:
+lemma read_safe_prefix:
   assumes "prefix m m'"
-      and "copy_safe s m l = Some c"
-    shows "copy_safe s m' l = Some c"
+      and "read_safe s m l = Some c"
+    shows "read_safe s m' l = Some c"
 proof -
-  have "\<forall>m' c. prefix m m' \<and> copy_safe s m l = Some c
-        \<longrightarrow> copy_safe s m' l = Some c" (is "?PROP m s l")
-  proof (induction rule:copy_safe.induct [where ?P="\<lambda>s m l. ?PROP m s l"])
+  have "\<forall>m' c. prefix m m' \<and> read_safe s m l = Some c
+        \<longrightarrow> read_safe s m' l = Some c" (is "?PROP m s l")
+  proof (induction rule:read_safe.induct [where ?P="\<lambda>s m l. ?PROP m s l"])
     case (1 s m l)
     show ?case
     proof (rule allI, rule allI, rule impI, erule conjE)
       fix m' c
-      assume *: "prefix m m'" and **: "copy_safe s m l = Some c"
+      assume *: "prefix m m'" and **: "read_safe s m l = Some c"
       then have "l < length m" using nth_safe_length[of m l]
         by (auto split:option.split_asm if_split_asm simp add:case_memory_def)
       then have ***: "m'$l = m $ l" using * unfolding prefix_def
@@ -1986,10 +1986,10 @@ proof -
         | xs'
         where "\<not> l |\<in>| s"
           and "m $ l = Some (mdata.Array xs')"
-          and "Some c = those (map (copy_safe (finsert l s) m) xs') \<bind> Some \<circ> Array"
+          and "Some c = those (map (read_safe (finsert l s) m) xs') \<bind> Some \<circ> Array"
         using that
         by (auto split:option.split_asm mdata.split_asm if_split_asm simp add:case_memory_def)
-      then show "copy_safe s m' l = Some c"
+      then show "read_safe s m' l = Some c"
       proof cases
         case 1
         then show ?thesis using ***
@@ -1998,17 +1998,17 @@ proof -
         case 2
         then obtain ar
           where "c = Array ar"
-            and "those (map (copy_safe (finsert l s) m) xs') = Some ar"
+            and "those (map (read_safe (finsert l s) m) xs') = Some ar"
           by (smt (verit, ccfv_SIG) bind_eq_Some_conv comp_apply option.inject)
-        then have "\<forall>x\<in>set xs'. copy_safe (finsert l s) m x \<noteq> None"
+        then have "\<forall>x\<in>set xs'. read_safe (finsert l s) m x \<noteq> None"
           using those_map_none by blast
         moreover from 1[OF 2(1) 2(2)] have
-          IH: "\<forall>x \<in> set xs'. (\<forall>c. copy_safe (finsert l s) m x = Some c
-          \<longrightarrow> copy_safe (finsert l s) m' x = Some c)"
+          IH: "\<forall>x \<in> set xs'. (\<forall>c. read_safe (finsert l s) m x = Some c
+          \<longrightarrow> read_safe (finsert l s) m' x = Some c)"
           using * by blast
         ultimately have
-          "those (map (copy_safe (finsert l s) m) xs')
-          = those (map (copy_safe (finsert l s) m') xs')"
+          "those (map (read_safe (finsert l s) m) xs')
+          = those (map (read_safe (finsert l s) m') xs')"
           using those_map_eq by blast
         moreover have "m' $ l = Some (mdata.Array xs')" using *** 2(2) by auto
         ultimately show ?thesis using 2 by (auto simp add:case_memory_def)
@@ -2018,22 +2018,22 @@ proof -
   then show ?thesis using assms by blast
 qed
 
-lemma mlookup_copy_memory_safe:
+lemma mlookup_read_safe:
   assumes "mlookup m' xs l = Some x"
       and "m' $ x = Some (mdata.Value v)"
-      and "copy_safe s m' x = Some a"
+      and "read_safe s m' x = Some a"
     shows "a = Value v"
   using assms by (auto simp add: case_memory_def split:if_split_asm)
 
-lemma mlookup_copy_memory_safe_obtain:
+lemma mlookup_read_safe_obtain:
   assumes "mlookup m0 (i#is) l1 = Some l1'"
-      and "copy_safe s m0 l1 = Some cd1"
+      and "read_safe s m0 l1 = Some cd1"
   obtains ls i' l'' cd'
   where "to_nat i = Some i'"
     and "ls $ i' = Some l''"
     and "mlookup m0 is l'' = Some l1'"
     and "m0 $ l1 = Some (mdata.Array ls)"
-    and "copy_safe (finsert l1 s) m0 l'' = Some cd'"
+    and "read_safe (finsert l1 s) m0 l'' = Some cd'"
 proof -
   from assms obtain ls i' l''
     where *: "m0 $ l1 = Some (mdata.Array ls)" 
@@ -2043,32 +2043,32 @@ proof -
     using mlookup_obtain_nempty2 by blast
   moreover from assms *  `to_nat i = Some i'` `ls $ i' = Some l''`
   obtain cd'
-    where cd'_def: "copy_safe (finsert l1 s) m0 l'' = Some cd'"
-    using those_map_some_nth[of "copy_safe (finsert l1 s) m0" ls _ i' l'']
-    by (case_tac "those (map (copy_safe (finsert l1 s) m0) ls)",
+    where cd'_def: "read_safe (finsert l1 s) m0 l'' = Some cd'"
+    using those_map_some_nth[of "read_safe (finsert l1 s) m0" ls _ i' l'']
+    by (case_tac "those (map (read_safe (finsert l1 s) m0) ls)",
         auto simp add:case_memory_def split:if_split_asm)
   ultimately show ?thesis using that by simp
 qed
 
-definition "copy = copy_safe {||}"
+definition "read = read_safe {||}"
 
-lemma copy_memory_some_same:
-  assumes "copy_safe s m l = Some x"
-  shows "copy m l = Some x"
-  using assms copy_memory_safe_subset_same unfolding copy_def by blast
+lemma read_some_same:
+  assumes "read_safe s m l = Some x"
+  shows "read m l = Some x"
+  using assms read_safe_subset_same unfolding read_def by blast
 
-lemma copy_memory_append:
+lemma read_append:
   assumes "prefix m m'"
-      and "copy m l = Some c"
-    shows "copy m' l = Some c"
-  using assms copy_memory_safe_prefix unfolding copy_def
+      and "read m l = Some c"
+    shows "read m' l = Some c"
+  using assms read_safe_prefix unfolding read_def
   by blast
 
 section \<open>Copy Memory and Memory Locations\<close>
 
-lemma locs_safe_copy_memory_safe:
+lemma locs_safe_read_safe:
   assumes "locs_safe s m l = Some L"
-    shows "\<exists>x. copy_safe s m l = Some x"
+    shows "\<exists>x. read_safe s m l = Some x"
   using assms
 proof (induction arbitrary: L rule:locs_safe.induct)
   case (1 s m l)
@@ -2078,13 +2078,13 @@ proof (induction arbitrary: L rule:locs_safe.induct)
     then show ?thesis by (auto simp add:case_memory_def)
   next
     case (2 xs)
-    moreover have "\<exists>x. those (map (copy_safe (finsert l s) m) xs) \<bind> Some \<circ> Array = Some x"
+    moreover have "\<exists>x. those (map (read_safe (finsert l s) m) xs) \<bind> Some \<circ> Array = Some x"
     proof -
       from 2(3) have "\<forall>x \<in> set xs. \<exists>y. locs_safe (finsert l s) m x = Some y"
         by (metis fold_some_subs)
-      then have "\<forall>x \<in> set xs. \<exists>y. copy_safe (finsert l s) m x = Some y"
+      then have "\<forall>x \<in> set xs. \<exists>y. read_safe (finsert l s) m x = Some y"
         using 1(1)[OF 2(1,2)] by blast
-      then obtain z where "those (map (copy_safe (finsert l s) m) xs) = Some z"
+      then obtain z where "those (map (read_safe (finsert l s) m) xs) = Some z"
         by (metis not_Some_eq those_map_none_none)
       then show ?thesis by simp
     qed
@@ -2092,16 +2092,16 @@ proof (induction arbitrary: L rule:locs_safe.induct)
   qed
 qed
 
-lemma copy_memory_safe_locs_safe:
-  assumes "copy_safe s m l = Some cd"
+lemma read_safe_locs_safe:
+  assumes "read_safe s m l = Some cd"
       and "locs_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "copy_safe s m' l = Some cd"
+    shows "read_safe s m' l = Some cd"
   using assms
-proof (induction arbitrary: cd L rule: copy_safe.induct)
+proof (induction arbitrary: cd L rule: read_safe.induct)
   case (1 s m' l)
   from 1(2) show ?case
-  proof (cases rule: copy_memory_safe_cases)
+  proof (cases rule: read_safe_cases)
     case _: (basic v)
     then show ?thesis using 1 by (auto simp add:case_memory_def)
   next
@@ -2110,16 +2110,16 @@ proof (induction arbitrary: cd L rule: copy_safe.induct)
       apply (auto simp add:case_memory_def)
       using "1.prems"(2) data.locs_safe_subs by blast
     then have *: "m' $ l = Some (mdata.Array v)" using array(2) 1(4) by simp
-    moreover have "those (map (copy_safe (finsert l s) m') v)
-                  = those (map (copy_safe (finsert l s) m) v)"
+    moreover have "those (map (read_safe (finsert l s) m') v)
+                  = those (map (read_safe (finsert l s) m) v)"
     proof -
-      have "\<forall>x \<in> set v. copy_safe (finsert l s) m' x = copy_safe (finsert l s) m x"
+      have "\<forall>x \<in> set v. read_safe (finsert l s) m' x = read_safe (finsert l s) m x"
       proof
         fix x assume "x \<in> set v"
         moreover from array(3)
-        obtain xx where "those (map (copy_safe (finsert l s) m) v) = Some xx"
-          by (cases "those (map (copy_safe (finsert l s) m) v)", auto)
-        then obtain c where "copy_safe (finsert l s) m x = Some c"
+        obtain xx where "those (map (read_safe (finsert l s) m) v) = Some xx"
+          by (cases "those (map (read_safe (finsert l s) m) v)", auto)
+        then obtain c where "read_safe (finsert l s) m x = Some c"
           by (meson `x \<in> set v` not_None_eq those_map_none)
         moreover from array have
           **: "fold
@@ -2131,7 +2131,7 @@ proof (induction arbitrary: cd L rule: copy_safe.induct)
         then obtain L' where "locs_safe (finsert l s) m x = Some L'" and "L' |\<subseteq>| L"
           using fold_some_subs[OF **] `x \<in> set v` by auto
         moreover from `L' |\<subseteq>| L` have "\<forall>l'|\<in>|L'. m' $ l' = m $ l'" using 1(4) by blast
-        ultimately show "copy_safe (finsert l s) m' x = copy_safe (finsert l s) m x"
+        ultimately show "read_safe (finsert l s) m' x = read_safe (finsert l s) m x"
           using 1(1)[OF array(1) *] "1.prems"(3) by auto
       qed
       then show ?thesis
@@ -2141,29 +2141,29 @@ proof (induction arbitrary: cd L rule: copy_safe.induct)
   qed
 qed
 
-lemma copy_memory_locs:
-  assumes "copy m l = Some cd"
+lemma read_locs:
+  assumes "read m l = Some cd"
       and "locs m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "copy m' l = Some cd"
-  using assms copy_memory_safe_locs_safe unfolding copy_def locs_def by blast
+    shows "read m' l = Some cd"
+  using assms read_safe_locs_safe unfolding read_def locs_def by blast
 
-lemma copy_memory_safe_locs_safe_same:
-  assumes "copy_safe s m1 l = Some x"
+lemma read_safe_locs_safe_same:
+  assumes "read_safe s m1 l = Some x"
       and "locs_safe s m1 l = Some L"
       and "\<forall>l |\<in>| s' - s. l |\<notin>| L"
-  shows "copy_safe s' m1 l = Some x"
+  shows "read_safe s' m1 l = Some x"
   using locs_safe_nin_same[OF assms(2,3)] assms(1)
-  by (metis copy_memory_some_same locs_safe_copy_memory_safe)
+  by (metis read_some_same locs_safe_read_safe)
 
-lemma locs_copy_memory_some:
-  assumes "copy_safe s m0 l0 = Some cd0"
+lemma locs_read_some:
+  assumes "read_safe s m0 l0 = Some cd0"
     shows "\<exists>L. locs_safe s m0 l0 = Some L"
   using assms
-proof (induction arbitrary: cd0 rule:copy_safe.induct)
+proof (induction arbitrary: cd0 rule:read_safe.induct)
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule:copy_memory_safe_cases)
+  proof (cases rule:read_safe_cases)
     case (basic v)
     then show ?thesis by (auto simp add:case_memory_def)
   next
@@ -2172,7 +2172,7 @@ proof (induction arbitrary: cd0 rule:copy_safe.induct)
     proof
       fix x
       assume "x \<in> set xs"
-      moreover obtain cd where "copy_safe (finsert l s) m x = Some cd"
+      moreover obtain cd where "read_safe (finsert l s) m x = Some cd"
         by (meson array(3) calculation set_nth_some those_map_some_nth)
       ultimately show "\<exists>L. locs_safe (finsert l s) m x = Some L" using 1(1)
         by (meson array(1,2))
@@ -2188,13 +2188,13 @@ proof (induction arbitrary: cd0 rule:copy_safe.induct)
   qed
 qed
 
-lemma copy_memory_safe_locs_safe_subs:
+lemma read_safe_locs_safe_subs:
  assumes "m $ l1' = Some (mdata.Array ls)"
     and "l2 \<in> set ls"
     and "mlookup m is2 l1 = Some l1'"
     and "locs_safe s m l1 = Some L1"
-    and "copy_safe s m l1 = Some cd"
-  shows "\<exists>x y. copy_safe s m l2 = Some x \<and> locs_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
+    and "read_safe s m l1 = Some cd"
+  shows "\<exists>x y. read_safe s m l2 = Some x \<and> locs_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
 proof -
   from assms(3,4) have "l1' |\<in>| L1" using locs_safe_mlookup by blast
   then obtain L1'
@@ -2214,30 +2214,30 @@ proof -
   using fold_some_subs[of "locs_safe (finsert l1' s) m" ls "Some {|l1'|}" L1'] assms(2) by blast
   then have "locs_safe s m l2 = Some LL"
     using locs_safe_subset_same by blast
-  ultimately show ?thesis using locs_safe_copy_memory_safe[of s m l2 LL] `LL |\<subseteq>| L1'` by auto
+  ultimately show ?thesis using locs_safe_read_safe[of s m l2 LL] `LL |\<subseteq>| L1'` by auto
 qed
 
 section \<open>Separation Check\<close>
 
-definition check:: "'v memory \<Rightarrow> location fset \<Rightarrow> bool" where
-  "check m L \<equiv>
+definition disjoined:: "'v memory \<Rightarrow> location fset \<Rightarrow> bool" where
+  "disjoined m L \<equiv>
     \<forall>x |\<in>| L. \<forall>xs. m$x = Some (mdata.Array xs)
     \<longrightarrow> (\<forall>i j i' j' L L'.
           i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m i' = Some L \<and> locs m j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})"
 
-lemma check_subs[intro]:
+lemma disjoined_subs[intro]:
   assumes "L' |\<subseteq>| L"
-      and "check m L"
-    shows "check m L'"
-  using assms unfolding check_def by blast
+      and "disjoined m L"
+    shows "disjoined m L'"
+  using assms unfolding disjoined_def by blast
 
-lemma check_check:
-  assumes "check m L"
+lemma disjoined_disjoined:
+  assumes "disjoined m L"
       and "locs m l = Some L"
       and "\<forall>l |\<in>| L. m $ l = m' $ l"
-    shows "check m' L"
-  unfolding check_def
+    shows "disjoined m' L"
+  unfolding disjoined_def
 proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
   fix x xs i j i' j' La L'
   assume *: "x |\<in>| L"
@@ -2258,16 +2258,16 @@ proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
     by (metis assms(3) locs_def locs_same option.inject)
   with *** have "locs m j' = Some L'" using locs_same[of m' j' L' m]
     using assms(3) by auto
-  ultimately show "La |\<inter>| L' = {||}" using assms(1) unfolding check_def by blast
+  ultimately show "La |\<inter>| L' = {||}" using assms(1) unfolding disjoined_def by blast
 qed
 
-lemma check_prefix:
+lemma disjoined_prefix:
   assumes "fset L \<subseteq> loc m"
       and "prefix m m'"
-      and "check m L"
+      and "disjoined m L"
       and "locs_safe s m' l = Some L"
-    shows "check m' L"
-  unfolding check_def
+    shows "disjoined m' L"
+  unfolding disjoined_def
 proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
   fix x xs i j i' j' La L'
   assume *: "x |\<in>| L"
@@ -2288,7 +2288,7 @@ proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
     unfolding prefix_def loc_def nth_safe_def by (auto simp add: nth_append_left)
   then have "locs m j' = Some L'" using locs_same[of m' j' L' m] using calculation(3) by auto
   moreover have "locs m j' = Some L'" using locs_same[of m' j' L' m] using calculation(6) by auto
-  ultimately show "La |\<inter>| L' = {||}" using assms(3) unfolding check_def by (meson  \<open>x |\<in>| L\<close>)
+  ultimately show "La |\<inter>| L' = {||}" using assms(3) unfolding disjoined_def by (meson  \<open>x |\<in>| L\<close>)
 qed
 
 lemma update_some:
@@ -2299,15 +2299,15 @@ lemma update_some:
       locs_safe s2 m0 l2 = Some L2 \<and>
       (\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l) \<and>
       (\<forall>l |\<in>| L2. m1 $ l = m0 $ l) \<and>
-      copy_safe s m0 l1 = Some cd1 \<and>
-      copy_safe s2 m0 l2 = Some cd2 \<and>
+      read_safe s m0 l1 = Some cd1 \<and>
+      read_safe s2 m0 l2 = Some cd2 \<and>
       s |\<inter>| L2 = {||} \<and>
       locations m0 is1 l1 = Some L3 \<and>
       L3 |\<inter>| L2 = {||} \<and>
       l1' |\<notin>| L2 \<and>
-      check m0 L1
-    \<longrightarrow> (\<exists>x. copy_safe s m1 l1 = Some x)" (is "?P s m1 l1")
-proof (induction rule: copy_safe.induct[where ?P = ?P])
+      disjoined m0 L1
+    \<longrightarrow> (\<exists>x. read_safe s m1 l1 = Some x)" (is "?P s m1 l1")
+proof (induction rule: read_safe.induct[where ?P = ?P])
   case IH: (1 s m1 l1)
   show ?case
   proof (rule allI, rule allI, rule allI, rule allI, rule impI, (erule conjE)+)
@@ -2319,15 +2319,15 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
        and 6: "locs_safe s2 m0 l2 = Some L2"
        and 7: "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
        and 8: "\<forall>l|\<in>|L2. m1 $ l = m0 $ l"
-       and 9: "copy_safe s m0 l1 = Some cd1"
-       and 10: "copy_safe s2 m0 l2 = Some cd2"
+       and 9: "read_safe s m0 l1 = Some cd1"
+       and 10: "read_safe s2 m0 l2 = Some cd2"
        and 11: "s |\<inter>| L2 = {||}"
        and 12: "locations m0 is1 l1 = Some L3"
        and 13: "L3 |\<inter>| L2 = {||}"
        and 14: "l1' |\<notin>| L2"
-       and 15: "check m0 L1"
+       and 15: "disjoined m0 L1"
     from 9 have "l1 |\<notin>| s" by auto
-    show "\<exists>x. copy_safe s m1 l1 = Some x"
+    show "\<exists>x. read_safe s m1 l1 = Some x"
     proof (cases "m1$l1")
       case None
       show ?thesis
@@ -2335,7 +2335,7 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
         case True
         then have "m1$l1 = m0$l2" using 1 3 by simp
         then show ?thesis using None
-          by (metis "10" copy_memory_safe_cases option.discI)
+          by (metis "10" read_safe_cases option.discI)
       next
         case False
         then obtain iv is1' where "is1=iv#is1'"
@@ -2355,26 +2355,26 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
         then show ?thesis using Some `l1 |\<notin>| s` by (simp add:case_memory_def)
       next
         case (Array ls)
-        have *: "\<forall>l \<in> set ls. \<exists>x'. copy_safe (finsert l1 s) m1 l = Some x'"
+        have *: "\<forall>l \<in> set ls. \<exists>x'. read_safe (finsert l1 s) m1 l = Some x'"
         proof
           fix l assume "l \<in> set ls"
           then obtain i where l_def: "ls $ i = Some l" using set_nth_some by fast
-          then show "\<exists>x'. copy_safe (finsert l1 s) m1 l = Some x'"
+          then show "\<exists>x'. read_safe (finsert l1 s) m1 l = Some x'"
           proof (cases "is1 = []")
             case True
             then have "m1$l1 = m0$l2" using 1 3 by simp
             then have "m0$l2 = Some (mdata.Array ls)" using Some Array by simp
             then obtain x y
-              where "copy_safe s2 m0 l = Some x"
+              where "read_safe s2 m0 l = Some x"
                 and "locs_safe s2 m0 l = Some y"
                 and "y |\<subseteq>| L2"
-              using \<open>l \<in> set ls\<close> 6 10 copy_memory_safe_locs_safe_subs mlookup.simps(1) by blast
-            then have "copy_safe s2 m1 l = Some x" and "locs_safe s2 m1 l = Some y"
-              using 8 copy_memory_safe_locs_safe[of s2 m0 l x y m1]
+              using \<open>l \<in> set ls\<close> 6 10 read_safe_locs_safe_subs mlookup.simps(1) by blast
+            then have "read_safe s2 m1 l = Some x" and "locs_safe s2 m1 l = Some y"
+              using 8 read_safe_locs_safe[of s2 m0 l x y m1]
                 locs_safe_same[of s2 m0 l y m1] by blast+  
             moreover have "l1 |\<notin>| L2" using 14 1 True by simp
-            ultimately have "copy_safe (finsert l1 s) m1 l = Some x"
-              using 11 `y |\<subseteq>| L2` copy_memory_safe_locs_safe_same[where ?s' = "finsert l1 s"]
+            ultimately have "read_safe (finsert l1 s) m1 l = Some x"
+              using 11 `y |\<subseteq>| L2` read_safe_locs_safe_same[where ?s' = "finsert l1 s"]
               by blast
             then show ?thesis by simp
           next
@@ -2409,10 +2409,10 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
                   and "L1'' |\<subseteq>| L1"
                 using fold_some_subs[of "locs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
                 by blast
-              moreover from 9 obtain cd1' where "copy_safe (finsert l1 s) m0 l = Some cd1'"
+              moreover from 9 obtain cd1' where "read_safe (finsert l1 s) m0 l = Some cd1'"
                 using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s`
                 apply (auto simp add:case_memory_def)
-                using those_map_none[of "copy_safe (finsert l1 s) m0"] `l \<in> set ls` by force
+                using those_map_none[of "read_safe (finsert l1 s) m0"] `l \<in> set ls` by force
               moreover have "locs_safe (finsert l1 s) m0 l1' = Some L1'" using 5 \<open>l1 |\<notin>| L1'\<close>
                 by (smt (verit, best) finsertE fminusD1 fminusD2 locs_safe_nin_same)
               moreover have "l1 |\<notin>| s" using 9 by auto
@@ -2426,7 +2426,7 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
               moreover from 7 have "\<forall>l|\<in>|L1'' |-| L1'. m1 $ l = m0 $ l"
                 using `L1'' |\<subseteq>| L1` by blast
               moreover from 13 have "L3' |\<inter>| L2 = {||}" using `L3 = finsert l1 L3'` by auto
-              moreover from 15 have "check m0 L1''" using `L1'' |\<subseteq>| L1` by blast
+              moreover from 15 have "disjoined m0 L1''" using `L1'' |\<subseteq>| L1` by blast
               moreover have "l1 |\<notin>| L1''"
                 by (metis calculation(2) finsert_not_fempty finter_finsert_left locs_safe_disj)
               ultimately show ?thesis using IH[OF _ _ `l \<in> set ls`] Some Array 3 6 8 10 14 by auto
@@ -2475,7 +2475,7 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
               then have "locs m0 l' = Some L'" unfolding locs_def
                 using locs_safe_subset_same by blast
               ultimately have "(L |\<inter>| L' = {||})"
-                using 15 Some Array `m1$l1 = m0$l1` l_def `l1 |\<in>| L1` unfolding check_def by metis
+                using 15 Some Array `m1$l1 = m0$l1` l_def `l1 |\<in>| L1` unfolding disjoined_def by metis
               moreover from 1 have "mlookup m0 is1' l' = Some l1'"
                 using Some Array `is1=iv#is1'` `m1$l1 = m0$l1` \<open>ls $ i' = Some l'\<close>
                   \<open>vtype_class.to_nat iv = Some i'\<close> mlookup_obtain_nempty2 by fastforce
@@ -2521,7 +2521,7 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
               qed
               ultimately have "locs_safe (finsert l1 s) m1 l = Some L"
                 using locs_safe_nin_same[of "{||}"] `l1 |\<notin>| s` `L |\<subseteq>| L1` unfolding locs_def by blast
-              then show ?thesis using locs_safe_copy_memory_safe by blast
+              then show ?thesis using locs_safe_read_safe by blast
             qed
           qed
         qed
@@ -2534,7 +2534,7 @@ proof (induction rule: copy_safe.induct[where ?P = ?P])
   qed
 qed
 
-lemma update_some_obtains_copy:
+lemma update_some_obtains_read:
   assumes "mlookup m0 is1 l1 = Some l1'"
   and "m1 $ l1' = m0 $ l2"
   and "locs_safe s0 m0 l1 = Some L1"
@@ -2542,16 +2542,16 @@ lemma update_some_obtains_copy:
   and "locs_safe s1 m0 l2 = Some L2"
   and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
   and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
-  and "copy_safe s0 m0 l1 = Some cd1"
-  and "copy_safe s1 m0 l2 = Some cd2"
+  and "read_safe s0 m0 l1 = Some cd1"
+  and "read_safe s1 m0 l2 = Some cd2"
   and "s0 |\<inter>| L2 = {||}"
   and "locations m0 is1 l1 = Some L3"
   and "L3 |\<inter>| L2 = {||}"
   and "l1' |\<notin>| L2"
-  and "check m0 L1"
-obtains x where "copy_safe s0 m1 l1 = Some x"
+  and "disjoined m0 L1"
+obtains x where "read_safe s0 m1 l1 = Some x"
   using update_some[of m0 l1 l1' m1 l2 s0 L1' s1 L2 cd2] assms
-  unfolding locs_def copy_def 
+  unfolding locs_def read_def 
   by blast
 
 lemma update_some_obtains_locs:
@@ -2566,21 +2566,21 @@ lemma update_some_obtains_locs:
   and "locations m0 is1 l1 = Some L3"
   and "L3 |\<inter>| L2 = {||}"
   and "l1' |\<notin>| L2"
-  and "check m0 L1"
+  and "disjoined m0 L1"
 obtains L where "locs_safe s0 m1 l1 = Some L"
 proof -
-  from assms(3) obtain cd1 where "copy_safe s0 m0 l1 = Some cd1"
-    using locs_safe_copy_memory_safe by blast
-  moreover from assms(5) obtain cd2 where "copy_safe s1 m0 l2 = Some cd2"
-    using locs_safe_copy_memory_safe by blast
-  ultimately obtain x where "copy_safe s0 m1 l1 = Some x"
-    using update_some_obtains_copy[OF assms(1,2,3,4,5,6,7) _ _ assms(8, 9,10,11,12)]
+  from assms(3) obtain cd1 where "read_safe s0 m0 l1 = Some cd1"
+    using locs_safe_read_safe by blast
+  moreover from assms(5) obtain cd2 where "read_safe s1 m0 l2 = Some cd2"
+    using locs_safe_read_safe by blast
+  ultimately obtain x where "read_safe s0 m1 l1 = Some x"
+    using update_some_obtains_read[OF assms(1,2,3,4,5,6,7) _ _ assms(8, 9,10,11,12)]
     by blast
-  then show ?thesis using locs_copy_memory_some that by blast
+  then show ?thesis using locs_read_some that by blast
 qed
 
-lemma check_locs_disj:
-  assumes "check m0 L"
+lemma disjoined_locs_disj:
+  assumes "disjoined m0 L"
       and "x |\<in>| L"
       and "m0 $ x = Some (mdata.Array xs)"
       and "m0 $ x = m1 $ x"
@@ -2595,7 +2595,7 @@ proof (rule allI, rule impI)
   assume "m1 $ x = Some (mdata.Array xs)"
   with assms(1,2,4) have "(\<forall>i j i' j' L L'.
           i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m0 i' = Some L \<and> locs m0 j' = Some L'
-      \<longrightarrow> L |\<inter>| L' = {||})" unfolding check_def by auto
+      \<longrightarrow> L |\<inter>| L' = {||})" unfolding disjoined_def by auto
   then show "\<forall>i j i' j' L L'. i \<noteq> j \<and> xs $ i = Some i' \<and> xs $ j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L' \<longrightarrow> L |\<inter>| L' = {||}"
     using assms(3,5)
     by (metis \<open>m1 $ x = Some (mdata.Array xs)\<close> assms(4) mdata.inject(2) nth_in_set option.inject)
@@ -2609,7 +2609,7 @@ lemma update_some_locs_subset:
       and "locs_safe s m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "check m0 L1"
+      and "disjoined m0 L1"
       and "locs_safe s m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
   using assms
@@ -2694,8 +2694,8 @@ next
           by (meson Cons.prems(3) \<open>x \<in> set ls\<close> locs_safe_obtains_subset fsubset_finsertI locs_safe_subset_same ls_def)
         moreover have "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l"
           using Cons.prems(6) calculation(4) by blast
-        moreover have "check m0 LL"
-          by (meson Cons.prems(8) calculation(4) check_subs)
+        moreover have "disjoined m0 LL"
+          by (meson Cons.prems(8) calculation(4) disjoined_subs)
         ultimately have "LLL |\<subseteq>| LL |\<union>| L2'" using Cons(1)[OF _ Cons(3) _ Cons(5) Cons(6) _ Cons(8)] by blast
         then show "fset LLL \<subseteq> fset (L1 |\<union>| L2')"
           using \<open>LL |\<subseteq>| L1\<close> by blast
@@ -2711,7 +2711,7 @@ next
         by (meson \<open>ls $ i'' = Some (ls ! i'')\<close> locs_safe_obtains_subset ls_def nth_in_set)
       then have LLL_def: "locs m0 (ls ! i'') = Some LLL"
           by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
-      moreover have "LL |\<inter>| LLL = {||}" using Cons(9) unfolding check_def using False i''_def x_def \<open>l1 |\<in>| L1\<close> ls_def \<open>ls $i'' = Some (ls ! i'')\<close>  \<open>ls $ i' = Some x\<close>
+      moreover have "LL |\<inter>| LLL = {||}" using Cons(9) unfolding disjoined_def using False i''_def x_def \<open>l1 |\<in>| L1\<close> ls_def \<open>ls $i'' = Some (ls ! i'')\<close>  \<open>ls $ i' = Some x\<close>
       LL_def LLL_def using calculation(1) by blast
       moreover have "L1' |\<subseteq>| LLL"
       proof -
@@ -2733,7 +2733,7 @@ next
     by blast
 qed
 
-lemma check_update:
+lemma disjoined_update:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
       and "locs_safe s m0 l1 = Some L1"
@@ -2741,11 +2741,11 @@ lemma check_update:
       and "locs_safe s m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "check m0 L1"
-      and "check m0 L2'"
+      and "disjoined m0 L1"
+      and "disjoined m0 L2'"
       and "locs_safe s m1 l1 = Some L"
       and "L1 |-| L1' |\<inter>| L2' = {||}"
-    shows "check m1 L"
+    shows "disjoined m1 L"
   using assms
 proof (induction is1 arbitrary: L l1 L1)
   case Nil
@@ -2762,10 +2762,10 @@ proof (induction is1 arbitrary: L l1 L1)
       case (Value x1)
       with Nil(10) Some have "L = {|l1|}" by (simp add:case_memory_def split:if_split_asm)
       then show ?thesis
-        by (simp add: Some Value check_def)
+        by (simp add: Some Value disjoined_def)
     next
       case (Array xs)
-      show ?thesis unfolding check_def
+      show ?thesis unfolding disjoined_def
       proof (rule ballI)
         fix x
         assume "x |\<in>| L"
@@ -2803,7 +2803,7 @@ proof (induction is1 arbitrary: L l1 L1)
               moreover from \<open>L0 |\<subseteq>| L2'\<close> have "\<forall>l |\<in>| L0. m1 $ l = m0 $ l" using Nil(7) by blast
               ultimately show ?thesis using * locs_same by metis
             qed
-            ultimately show "L |\<inter>| L' = {||}" using Some Array  Nil(9) unfolding check_def
+            ultimately show "L |\<inter>| L' = {||}" using Some Array  Nil(9) unfolding disjoined_def
               by (metis "1" \<open>l1 = l1'\<close> assms(2,5) locs_safe_subs)
           qed
         next
@@ -2816,7 +2816,7 @@ proof (induction is1 arbitrary: L l1 L1)
           with Nil(9) 2 LL_def \<open>LL |\<subseteq>| L2'\<close> Some Array
           have *: "\<forall>x|\<in>|L2'. \<forall>xs. m0 $ x = Some (mdata.Array xs) \<longrightarrow> (\<forall>i j i' j' L L'.
           i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m0 i' = Some L \<and> locs m0 j' = Some L'
-      \<longrightarrow> L |\<inter>| L' = {||})" unfolding check_def
+      \<longrightarrow> L |\<inter>| L' = {||})" unfolding disjoined_def
             by (metis)
           show ?thesis
           proof (rule allI, rule impI, (rule allI)+, rule impI)
@@ -2869,7 +2869,7 @@ next
     by (metis ls_def mdata.inject(2) nth_safe_length option.inject)
   then have "ls $i'' = Some (ls ! i'')" by simp
 
-  show ?case unfolding check_def
+  show ?case unfolding disjoined_def
   proof
     fix x
     assume "x |\<in>| L"
@@ -2938,7 +2938,7 @@ next
           moreover obtain LL' where "locs_safe s m1 i0' = Some LL'" and "LL' |\<subseteq>| L"
             using locs_safe_obtains_subset[OF Cons(11) m1_ls] \<open>ls = xs\<close> *
             by (metis fsubset_finsertI locs_safe_subset_same nth_in_set)
-          moreover have "check m0 Li'"
+          moreover have "disjoined m0 Li'"
             using Cons.prems(8) \<open>Li' |\<subseteq>| L1\<close> by auto
           ultimately consider "x |\<in>|Li'" | "x |\<in>| L2'"
             using update_some_locs_subset[OF _ Cons(3) _ Cons(5,6) _ Cons(8), of is1' "i0'" Li' LL']
@@ -2957,7 +2957,7 @@ next
                 moreover have "locs m0 i0' = Some Li'"
                   by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
                 ultimately have "LL |\<inter>| Li' = {||}"
-                  using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding check_def by blast
+                  using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
                 moreover have "L1' |\<subseteq>| Li'" using mlookup_locs_subs[OF _ Cons(5)]
                   using \<open>locs_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
                 ultimately have "LL |\<inter>| L1' = {||}" by auto
@@ -2970,7 +2970,7 @@ next
               moreover have "locs m0 i0' = Some Li'"                                                     
                 by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
               ultimately show "L' |\<inter>| Li' = {||}"
-                using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding check_def by blast
+                using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
             qed
             ultimately show ?thesis by blast
           next
@@ -2986,7 +2986,7 @@ next
                 moreover have "locs m0 i0' = Some Li'"
                   by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
                 ultimately have "LL |\<inter>| Li' = {||}"
-                  using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding check_def by blast
+                  using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
                 moreover have "L1' |\<subseteq>| Li'" using mlookup_locs_subs[OF _ Cons(5)]
                   using \<open>locs_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
                 ultimately have "LL |\<inter>| L1' = {||}" by auto
@@ -3038,7 +3038,7 @@ next
             then have "locs m0 j' = Some Li''"
               unfolding locs_def using data.locs_safe_subset_same by blast
             moreover have "Li' |\<inter>| Li'' = {||}"
-              using "*" Cons.prems(8) \<open>l1 |\<in>| L1\<close> \<open>ls = xs\<close> calculation(1,2) check_def ls_def by blast
+              using "*" Cons.prems(8) \<open>l1 |\<in>| L1\<close> \<open>ls = xs\<close> calculation(1,2) disjoined_def ls_def by blast
             moreover have "locs m1 i0' = locs m0 i0'" and "locs m1 j' = locs m0 j'"
             proof -
               have *:"mlookup m0 is1' (ls ! i'') = Some l1'"
@@ -3052,7 +3052,7 @@ next
               proof -
                 from LL_def have "locs m0 (ls ! i'') = Some LL"
                   by (metis fempty_fsubsetI locs_def locs_safe_subset_same)
-                then show ?thesis using Cons(9) \<open>locs m0 i0' = Some Li'\<close> unfolding check_def
+                then show ?thesis using Cons(9) \<open>locs m0 i0' = Some Li'\<close> unfolding disjoined_def
                   using "1"(2) \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> \<open>xs $ i0 = Some i0'\<close> ls_def \<open>l1 |\<in>| L1\<close> by blast
               qed
               ultimately have "Li' |\<inter>| L1' = {||}" by auto
@@ -3064,7 +3064,7 @@ next
                 by (metis fempty_fsubsetI locs_def locs_safe_subset_same)   
               then have "LL |\<inter>| Li'' = {||}"
                 using "1"(3) \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> \<open>xs $ j = Some j'\<close> ls_def \<open>l1 |\<in>| L1\<close>  Cons(9) \<open>locs m0 j' = Some Li''\<close>
-                unfolding check_def by blast
+                unfolding disjoined_def by blast
               then have "Li'' |\<inter>| L1' = {||}" using \<open>L1' |\<subseteq>| LL\<close> by auto
               then have "\<forall>l |\<in>| Li''. m1 $ l = m0 $ l"
                 using Cons(7) \<open>locs m0 j' = Some Li''\<close> \<open>Li'' |\<subseteq>| L1\<close> by blast
@@ -3097,7 +3097,7 @@ next
           then have "locs_safe s m0 (ls ! i'') = Some LL"
             by (meson fsubset_finsertI locs_safe_subset_same)
           moreover have "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> Cons(7) by auto
-          moreover have "check m0 LL"  using \<open>LL |\<subseteq>| L1\<close> Cons(9) by auto
+          moreover have "disjoined m0 LL"  using \<open>LL |\<subseteq>| L1\<close> Cons(9) by auto
           moreover obtain LL'
             where "locs_safe s m1 (ls ! i'') = Some LL'"
               and "LL' |\<subseteq>| L"
@@ -3105,10 +3105,10 @@ next
             by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> fsubset_finsertI locs_safe_subset_same nth_in_set)
           moreover have "LL |-| L1' |\<inter>| L2' = {||}" using Cons(12)
             using \<open>LL |\<subseteq>| L1\<close> by blast
-          ultimately have "check m1 LL'" using Cons(1)[of "ls ! i''", OF _ Cons(3) _ Cons(5,6) _ Cons(8) _ Cons(10)]
+          ultimately have "disjoined m1 LL'" using Cons(1)[of "ls ! i''", OF _ Cons(3) _ Cons(5,6) _ Cons(8) _ Cons(10)]
             by simp
           then show ?thesis
-            using \<open>LL' |\<subseteq>| L\<close> "2"(2,3) True \<open>locs_safe s m1 (ls ! i'') = Some LL'\<close> check_def locslocs xs_def by blast
+            using \<open>LL' |\<subseteq>| L\<close> "2"(2,3) True \<open>locs_safe s m1 (ls ! i'') = Some LL'\<close> disjoined_def locslocs xs_def by blast
         next
           case False
           moreover obtain Li'
@@ -3125,7 +3125,7 @@ next
           moreover have "ls $i' = Some (ls ! i')" by (simp add: "2"(1))
           ultimately have "Li' |\<inter>| Li'' = {||}"
             using Cons(9) Li''_def \<open>l1 |\<in>| L1\<close> ls_def \<open>ls $i'' = Some (ls ! i'')\<close>
-            unfolding check_def by blast
+            unfolding disjoined_def by blast
           moreover have "L1' |\<subseteq>| Li''"
           proof -
             have "mlookup m0 is1' (ls ! i'') = Some l1'"
@@ -3168,7 +3168,7 @@ next
                     \<and> locs m1 i' = Some L
                     \<and> locs m1 j' = Some L'
                     \<longrightarrow> L |\<inter>| L' = {||})"
-            using check_locs_disj[OF Cons(9), of x xs m1] by simp
+            using disjoined_locs_disj[OF Cons(9), of x xs m1] by simp
           then show ?thesis using \<open>m1 $ x = Some (mdata.Array xs)\<close> by blast
         qed
       qed
@@ -3187,11 +3187,11 @@ datatype 'v adata =
 abbreviation case_adata where "case_adata cd vf af \<equiv> adata.case_adata vf af cd"
 
 global_interpretation a_data: data adata.Value adata.Array
-  defines acopy_safe = a_data.copy_safe
-      and acopy = a_data.copy
+  defines aread_safe = a_data.read_safe
+      and aread = a_data.read
       and alocs_safe = a_data.locs_safe
       and alocs = a_data.locs
-      and acheck = a_data.check
+      and adisjoined = a_data.disjoined
   .
 
 section \<open>Array Lookup\<close>
@@ -3300,10 +3300,10 @@ qed
 
 section \<open>Array Lookup and Memory Copy\<close>
 
-lemma copy_memory_alookup_obtains:
-  assumes "acopy_safe s m l = Some cd"
+lemma read_alookup_obtains:
+  assumes "aread_safe s m l = Some cd"
       and "mlookup m xs l = Some l'"
-  shows "\<exists>cd'. acopy_safe s m l' = Some cd' \<and> alookup xs cd = Some cd'"
+  shows "\<exists>cd'. aread_safe s m l' = Some cd' \<and> alookup xs cd = Some cd'"
   using assms
 proof (induction xs arbitrary: l cd)
   case Nil
@@ -3322,21 +3322,21 @@ next
     apply (case_tac "x2a $ aaa") by auto
 
   from Cons(2) *
-    have *: "Some cd = those (map (acopy_safe (finsert l s) m) xs') \<bind> Some \<circ> adata.Array"  
-    using a_data.copy_memory_safe_cases[of s m l cd] by fastforce
+    have *: "Some cd = those (map (aread_safe (finsert l s) m) xs') \<bind> Some \<circ> adata.Array"  
+    using a_data.read_safe_cases[of s m l cd] by fastforce
   then obtain xs''
-    where xx1:"those (map (acopy_safe (finsert l s) m) xs') = Some xs''" by fastforce
+    where xx1:"those (map (aread_safe (finsert l s) m) xs') = Some xs''" by fastforce
   then have a1: "cd = adata.Array xs''" using * by simp
 
-  moreover obtain cd' where a3: "acopy_safe s m l'' = Some cd'"
+  moreover obtain cd' where a3: "aread_safe s m l'' = Some cd'"
     by (smt (verit, ccfv_threshold) Option.bind_cong bind.bind_lunit bind_rzero
-        a_data.copy_memory_safe_subset_same fsubset_finsertI option.discI
+        a_data.read_safe_subset_same fsubset_finsertI option.discI
         those_map_some_nth x1 xx1)
   moreover have a2: "(to_nat a) \<bind> ($) xs'' = Some cd'"
-    by (smt (verit, ccfv_SIG) a3 a_data.copy_memory_some_same bind_eq_Some_conv
+    by (smt (verit, ccfv_SIG) a3 a_data.read_some_same bind_eq_Some_conv
           local.x1 those_map_nth those_map_some_nth xx1)
   ultimately obtain cd''
-    where "acopy_safe s m l' = Some cd'' \<and> alookup xs cd' = Some cd''"
+    where "aread_safe s m l' = Some cd'' \<and> alookup xs cd' = Some cd''"
     using Cons(1) ** by auto
   moreover have "alookup xs cd' = alookup (a # xs) cd"
     by (simp add: a1 a2)
@@ -3344,9 +3344,9 @@ next
   ultimately show ?case by simp
 qed
 
-lemma mlookup_copy_alookup:
+lemma mlookup_read_alookup:
   assumes "mlookup m0 is l1 = Some l1'"
-    and "acopy_safe s m0 l1 = Some cd1"
+    and "aread_safe s m0 l1 = Some cd1"
 shows "\<exists>cd'. alookup is cd1 = Some cd'"
   using assms
 proof (induction "is"arbitrary:s l1 cd1)
@@ -3359,14 +3359,14 @@ next
       and "to_nat i = Some i'"
       and "ls $ i' = Some l''"
       and "mlookup m0 is' l'' = Some l1'"
-      and cd'_def: "acopy_safe (finsert l1 s) m0 l'' = Some cd'"
-    using a_data.mlookup_copy_memory_safe_obtain by metis
+      and cd'_def: "aread_safe (finsert l1 s) m0 l'' = Some cd'"
+    using a_data.mlookup_read_safe_obtain by metis
   then obtain cd''
     where "alookup is' cd' = Some cd''" using Cons(1)[of l''] by blast
   moreover from * obtain cs
     where "cd1 = Array cs"
       and "cs $ i' = Some cd'"
-    using a_data.copy_memory_safe_array Cons * cd'_def \<open>ls $ i' = Some l''\<close> by blast
+    using a_data.read_safe_array Cons * cd'_def \<open>ls $ i' = Some l''\<close> by blast
   ultimately show ?case using `to_nat i = Some i'` `ls $ i' = Some l''` by auto
 qed
 
@@ -3629,30 +3629,30 @@ lemma separate_memory:
   assumes "mlookup m xs1 l1 = Some l1'"
   and  "mlookup m xs2 l2 = Some l2'"
   and "m $ l1' = m $ l2'"
-  and "acopy_safe s1 m l1 = Some cd1"
-  and "acopy_safe s2 m l2 = Some cd2"
+  and "aread_safe s1 m l1 = Some cd1"
+  and "aread_safe s2 m l2 = Some cd2"
 shows "alookup xs2 cd2 \<bind> (\<lambda>cd. aupdate xs1 cd cd1) = Some cd1"
 proof -
   from assms obtain cd1' cd2'
-    where *: "acopy_safe s1 m l1' = Some cd1'" and "alookup xs1 cd1 = Some cd1'"
-      and **: "acopy_safe s2 m l2' = Some cd2'" and "alookup xs2 cd2 = Some cd2'"
+    where *: "aread_safe s1 m l1' = Some cd1'" and "alookup xs1 cd1 = Some cd1'"
+      and **: "aread_safe s2 m l2' = Some cd2'" and "alookup xs2 cd2 = Some cd2'"
       using
-        copy_memory_alookup_obtains[OF assms(4,1)]
-        copy_memory_alookup_obtains[OF assms(5,2)]
+        read_alookup_obtains[OF assms(4,1)]
+        read_alookup_obtains[OF assms(5,2)]
       by blast
-  moreover from assms(3) have "cd1' = cd2'" using a_data.copy_memory_safe_some_same * ** by blast
+  moreover from assms(3) have "cd1' = cd2'" using a_data.read_safe_some_same * ** by blast
   ultimately show ?thesis using alookup_update_some by blast
 qed
 
 lemma split_memory:
-  assumes "acopy_safe s1 m l = Some cd"
+  assumes "aread_safe s1 m l = Some cd"
       and "mlookup m xs l = Some l'"
-    shows "acopy_safe s1 m l' \<bind> (\<lambda>cd'. aupdate xs cd' cd) = Some cd"
-  using assms copy_memory_alookup_obtains separate_memory by fastforce
+    shows "aread_safe s1 m l' \<bind> (\<lambda>cd'. aupdate xs cd' cd) = Some cd"
+  using assms read_alookup_obtains separate_memory by fastforce
 
-lemma mlookup_copy_update:
+lemma mlookup_read_update:
   assumes "mlookup m0 is l1 = Some l1'"
-      and "acopy_safe s m0 l1 = Some cd1"
+      and "aread_safe s m0 l1 = Some cd1"
     shows "\<exists>cd'.
             aupdate is cd cd1 = Some cd' \<and>
               (is \<noteq> [] \<longrightarrow>
@@ -3669,8 +3669,8 @@ next
       and **: "to_nat i = Some i'"
       and "ls $ i' = Some l''"
       and "mlookup m0 is' l'' = Some l1'"
-      and cd'_def: "acopy_safe (finsert l1 s) m0 l'' = Some cd'"
-    using a_data.mlookup_copy_memory_safe_obtain by metis
+      and cd'_def: "aread_safe (finsert l1 s) m0 l'' = Some cd'"
+    using a_data.mlookup_read_safe_obtain by metis
 
   then obtain cd''
     where "aupdate is' cd cd' = Some cd''" using Cons(1)[of l'' "(finsert l1 s)" cd']
@@ -3679,20 +3679,20 @@ next
     where "cd1 = Array as"
       and "as $ i' = Some cd'"
       and "length as = length ls"
-    using a_data.copy_memory_safe_array Cons * cd'_def \<open>ls $ i' = Some l''\<close> by blast
+    using a_data.read_safe_array Cons * cd'_def \<open>ls $ i' = Some l''\<close> by blast
   ultimately show ?case using `to_nat i = Some i'` `ls $ i' = Some l''` * by simp
 qed
 
-lemma copy_memory_safe_lookup_update_value:
+lemma read_safe_lookup_update_value:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "l1' < length m0"
       and "m1 = m0[l1':=mdata.Value v]"
       and "alocs_safe s m0 l1 = Some L1"
       and "alocs_safe s m0 l1' = Some L1'"
       and "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
-      and "acopy_safe s m0 l1 = Some cd0"
-      and "acheck m0 L1"
-      and "acopy_safe s m1 l1 = Some cd1"
+      and "aread_safe s m0 l1 = Some cd0"
+      and "adisjoined m0 L1"
+      and "aread_safe s m1 l1 = Some cd1"
     shows "aupdate is1 (Value v) cd0 = Some cd1"
   using assms
 proof (induction is1 arbitrary:l1 cd0 cd1 L1 s)
@@ -3710,20 +3710,20 @@ next
         nth_list_update_neq nth_safe_length nth_safe_some)
   moreover from Cons(5) have "l1 |\<notin>| s" by auto
   ultimately have
-    *: "Some cd1 = those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
-    using a_data.copy_memory_safe_cases[OF Cons(10)] by fastforce
+    *: "Some cd1 = those (map (aread_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
+    using a_data.read_safe_cases[OF Cons(10)] by fastforce
   moreover obtain as
     where as_def: "aupdate (i # is1') (adata.Value v) cd0 = Some (adata.Array as)"
       and "length as = length ls"
-    using mlookup_copy_update[OF Cons(2,8)] ls_def by fastforce
-  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_safe (finsert l1 s) m1) ls) ! i"
+    using mlookup_read_update[OF Cons(2,8)] ls_def by fastforce
+  moreover have "\<forall>i < length as. Some (as!i) = (map (aread_safe (finsert l1 s) m1) ls) ! i"
   proof (rule, rule)
     fix i'
     assume "i' < length as"
     then have "i'<length ls" using \<open>length as = length ls\<close> by simp
     then have "(ls ! i') \<in> set ls"
       by simp
-    show "Some (as ! i') = map (acopy_safe (finsert l1 s) m1) ls ! i'"
+    show "Some (as ! i') = map (aread_safe (finsert l1 s) m1) ls ! i'"
     proof (cases "to_nat i = Some i'")
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
@@ -3752,21 +3752,21 @@ next
              nth_safe_some option.inject)
 
       from Cons(8) have
-        "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd0"
+        "those (map (aread_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd0"
         using \<open>l1 |\<notin>| s\<close> ls_def using True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
-        where cd1'_def: "acopy_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
-        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_copy_memory_safe
+        where cd1'_def: "aread_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
+        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_read_safe
         by blast
 
       from Cons(10) have
-        "those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd1"
+        "those (map (aread_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> m1_ls True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd2'
-        where cd2'_def: "acopy_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
-        using those_map_none[of "acopy_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
+        where cd2'_def: "aread_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
+        using those_map_none[of "aread_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
         by fastforce
       thm Cons(1)
       moreover have "aupdate is1' (Value v) cd1' = Some cd2'"
@@ -3787,7 +3787,7 @@ next
       next
         from Cons(7) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by blast
       next
-        from Cons(9) show "acheck m0 LL" using \<open>LL |\<subseteq>| L1\<close> by auto
+        from Cons(9) show "adisjoined m0 LL" using \<open>LL |\<subseteq>| L1\<close> by auto
       qed
       then have "(as ! i') = cd2'"
         using as_def cd1'_def ls_def True Cons(8)
@@ -3795,15 +3795,15 @@ next
         apply (cases cd0,auto)
         apply (case_tac "x2 $ i'",auto)
         apply (case_tac " aupdate is1' (adata.Value v) a",auto)
-        apply (case_tac "those (map (acopy_safe (finsert l1 s) m0) ls)",auto)
+        apply (case_tac "those (map (aread_safe (finsert l1 s) m0) ls)",auto)
         apply (case_tac "m0 $ (ls ! i')",auto)
         apply (case_tac "ab",auto)
         using \<open>i' < length as\<close> aupdate_obtain apply fastforce
         by (metis \<open>i' < length as\<close> cd1'_def length_list_update map_equality_iff
             nth_list_update_eq nth_safe_some option.inject those_some_map)
       moreover have
-        "map (acopy_safe (finsert l1 s) m1) ls ! i'
-        = acopy_safe (finsert l1 s) m1 (ls ! i')"
+        "map (aread_safe (finsert l1 s) m1) ls ! i'
+        = aread_safe (finsert l1 s) m1 (ls ! i')"
         by (simp add: \<open>i' < length ls\<close>)
       ultimately show ?thesis by simp
     next  
@@ -3817,17 +3817,17 @@ next
         apply (cases is1',auto simp add:case_memory_def)
         using mlookup_obtain_nempty2 by fastforce
       moreover from Cons(8) ls_def have
-        *: "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd0"
+        *: "those (map (aread_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd0"
         using \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
       moreover from * obtain aa
-        where aa_def: "those (map (acopy_safe (finsert l1 s) m0) ls) = Some aa"
-        by (cases "those (map (acopy_safe (finsert l1 s) m0) ls)", auto)
+        where aa_def: "those (map (aread_safe (finsert l1 s) m0) ls) = Some aa"
+        by (cases "those (map (aread_safe (finsert l1 s) m0) ls)", auto)
       moreover from aa_def have "length aa = length ls" by (metis length_map those_some_map)
-      then have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
-        using * those_map_nth[of "acopy_safe (finsert l1 s) m0" ls aa i']
+      then have "aread_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
+        using * those_map_nth[of "aread_safe (finsert l1 s) m0" ls aa i']
           aa_def `i' < length ls`
         by (auto simp add:nth_safe_def split:if_split_asm option.split_asm)
-      ultimately have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
+      ultimately have "aread_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
         using aupdate_nth_same[of i is1' "Value v" aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
@@ -3862,7 +3862,7 @@ next
         moreover have "l1 |\<in>| L1"
           using Cons.prems(4) a_data.locs_safe_subs by auto
         ultimately have "(L |\<inter>| L' = {||})"
-          using Cons(9) unfolding a_data.check_def
+          using Cons(9) unfolding a_data.disjoined_def
           using ls_def `i'' \<noteq> i'` by blast
         moreover have "mlookup m0 is1' (ls ! i'') = Some l1'"
           using Cons(2) ls_def \<open>to_nat i = Some i''\<close>
@@ -3871,15 +3871,15 @@ next
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(7) by auto
       qed
-      ultimately have "acopy_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
-        using a_data.copy_memory_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
+      ultimately have "aread_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
+        using a_data.read_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
   qed
   ultimately show ?case by (simp add:map_some_those_some)
 qed
 
-lemma copy_memory_safe_lookup_update:
+lemma read_safe_lookup_update:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m1 $ l1' = m0 $ l2'"
@@ -3888,10 +3888,10 @@ lemma copy_memory_safe_lookup_update:
       and "alocs_safe s2 m0 l2 = Some L2"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
-      and "acopy_safe s m0 l1 = Some cd1"
-      and "acopy_safe s2 m0 l2 = Some cd2"
-      and "acheck m0 L1"
-      and "acopy_safe s m1 l1 = Some cd"
+      and "aread_safe s m0 l1 = Some cd1"
+      and "aread_safe s2 m0 l2 = Some cd2"
+      and "adisjoined m0 L1"
+      and "aread_safe s m1 l1 = Some cd"
     shows "alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1 cd cd1) = Some cd"
   using assms
 proof (induction is1 arbitrary:l1 cd cd1 L1 s)
@@ -3910,8 +3910,8 @@ proof (induction is1 arbitrary:l1 cd cd1 L1 s)
   moreover from Nil have "m1$l1 = m0$l2'" by simp
   then have "m1$l2' = m1$l1" using Nil a_data.locs_safe_mlookup by metis
   then have "m1 $ l1' = m1 $ l2'" by (metis bind.bind_lunit calculation(1) mlookup.simps(1))
-  moreover have "acopy_safe s2 m1 l2 = Some cd2"
-    using a_data.copy_memory_safe_locs_safe[OF Nil(10,6,8)] .
+  moreover have "aread_safe s2 m1 l2 = Some cd2"
+    using a_data.read_safe_locs_safe[OF Nil(10,6,8)] .
   ultimately show ?case using separate_memory[of m1 "[]" l1 l1' is2 l2 l2' s cd s2 cd2] by auto
 next
   case (Cons i is1')
@@ -3924,8 +3924,8 @@ next
         a_data.locs_safe_in_subs)
   moreover from Cons(13) have "l1 |\<notin>| s" by auto
   ultimately have
-    *: "Some cd = those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
-    using a_data.copy_memory_safe_cases[OF Cons(13)] by fastforce
+    *: "Some cd = those (map (aread_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
+    using a_data.read_safe_cases[OF Cons(13)] by fastforce
   moreover obtain as
     where as_def: "alookup is2 cd2
             \<bind> (\<lambda>cd. aupdate (i # is1') cd cd1) = Some (adata.Array as)"
@@ -3933,21 +3933,21 @@ next
   proof -
     from Cons(3,11) obtain cd'
       where "alookup is2 cd2 = Some cd'"
-      using mlookup_copy_alookup by blast
+      using mlookup_read_alookup by blast
     moreover obtain as
       where "aupdate (i # is1') cd' cd1 = Some (adata.Array as)"
         and "length as = length ls"
-      using mlookup_copy_update[OF Cons(2,10)] ls_def by fastforce
+      using mlookup_read_update[OF Cons(2,10)] ls_def by fastforce
     ultimately show ?thesis using that by simp
   qed
-  moreover have "\<forall>i < length as. Some (as!i) = (map (acopy_safe (finsert l1 s) m1) ls) ! i"
+  moreover have "\<forall>i < length as. Some (as!i) = (map (aread_safe (finsert l1 s) m1) ls) ! i"
   proof (rule, rule)
     fix i'
     assume "i' < length as"
     then have "i'<length ls" using \<open>length as = length ls\<close> by simp
     then have "(ls ! i') \<in> set ls"
       by simp
-    show "Some (as ! i') = map (acopy_safe (finsert l1 s) m1) ls ! i'"
+    show "Some (as ! i') = map (aread_safe (finsert l1 s) m1) ls ! i'"
     proof (cases "to_nat i = Some i'")
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
@@ -3977,21 +3977,21 @@ next
              nth_safe_some option.inject)
 
       from Cons(10) have
-        "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd1"
+        "those (map (aread_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> adata.Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> ls_def using True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
-        where cd1'_def: "acopy_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
-        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_copy_memory_safe
+        where cd1'_def: "aread_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
+        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_read_safe
         by blast
 
       from Cons(13) have
-        "those (map (acopy_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd"
+        "those (map (aread_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> adata.Array = Some cd"
         using \<open>l1 |\<notin>| s\<close> m1_ls True
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd2'
-        where cd2'_def: "acopy_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
-        using those_map_none[of "acopy_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
+        where cd2'_def: "aread_safe (finsert l1 s) m1 (ls!i') = Some cd2'"
+        using those_map_none[of "aread_safe (finsert l1 s) m1" ls] \<open>(ls ! i') \<in> set ls\<close>
         by fastforce
         
       moreover have "alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1' cd cd1') = Some cd2'"
@@ -4014,7 +4014,7 @@ next
       next
         from Cons(8) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by blast
       next
-        from Cons(12) show "acheck m0 LL" using \<open>LL |\<subseteq>| L1\<close> by auto
+        from Cons(12) show "adisjoined m0 LL" using \<open>LL |\<subseteq>| L1\<close> by auto
       qed
       then have "(as ! i') = cd2'"
         using as_def cd1'_def ls_def True Cons(10)
@@ -4023,15 +4023,15 @@ next
         apply (cases cd1,auto)
         apply (case_tac "x2 $ i'",auto)
         apply (case_tac " aupdate is1' a aa",auto)
-        apply (case_tac "those (map (acopy_safe (finsert l1 s) m0) ls)",auto)
+        apply (case_tac "those (map (aread_safe (finsert l1 s) m0) ls)",auto)
         apply (case_tac "m0 $ (ls ! i')",auto)
         apply (case_tac "ac",auto)
         using \<open>i' < length as\<close> aupdate_obtain apply fastforce
         by (metis \<open>i' < length as\<close> cd1'_def length_list_update map_equality_iff
             nth_list_update_eq nth_safe_some option.inject those_some_map)
       moreover have
-        "map (acopy_safe (finsert l1 s) m1) ls ! i'
-        = acopy_safe (finsert l1 s) m1 (ls ! i')"
+        "map (aread_safe (finsert l1 s) m1) ls ! i'
+        = aread_safe (finsert l1 s) m1 (ls ! i')"
         by (metis L3_def True \<open>m0 $ l1 = Some (mdata.Array ls)\<close>
             locations_obtain mdata.inject(2) nth_map nth_safe_length option.inject)
       ultimately show ?thesis by simp
@@ -4046,20 +4046,20 @@ next
         apply (cases is1',auto simp add:case_memory_def)
         using mlookup_obtain_nempty2 by fastforce
       moreover from Cons(10) ls_def have
-        *: "those (map (acopy_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd1"
+        *: "those (map (aread_safe (finsert l1 s) m0) ls) \<bind> Some \<circ> Array = Some cd1"
         using \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
       moreover from * obtain aa
-        where aa_def: "those (map (acopy_safe (finsert l1 s) m0) ls) = Some aa"
-        by (cases "those (map (acopy_safe (finsert l1 s) m0) ls)", auto)
+        where aa_def: "those (map (aread_safe (finsert l1 s) m0) ls) = Some aa"
+        by (cases "those (map (aread_safe (finsert l1 s) m0) ls)", auto)
       moreover from aa_def have "length aa = length ls" by (metis length_map those_some_map)
-      then have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
-        using * those_map_nth[of "acopy_safe (finsert l1 s) m0" ls aa i']
+      then have "aread_safe (finsert l1 s) m0 (ls ! i') = Some (aa!i')"
+        using * those_map_nth[of "aread_safe (finsert l1 s) m0" ls aa i']
           aa_def `i' < length ls`
         by (auto simp add:nth_safe_def split:if_split_asm option.split_asm)
       moreover from Cons(3,11) obtain cd'
         where "alookup is2 cd2 = Some cd'"
-        using mlookup_copy_alookup by blast
-      ultimately have "acopy_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
+        using mlookup_read_alookup by blast
+      ultimately have "aread_safe (finsert l1 s) m0 (ls ! i') = Some (as ! i')"
         using aupdate_nth_same[of i is1' cd' aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
@@ -4094,7 +4094,7 @@ next
         moreover have "l1 |\<in>| L1"
           using Cons.prems(4) a_data.locs_safe_subs by auto
         ultimately have "(L |\<inter>| L' = {||})"
-          using Cons(12) unfolding a_data.check_def
+          using Cons(12) unfolding a_data.disjoined_def
           using ls_def `i'' \<noteq> i'` by blast
         moreover have "mlookup m0 is1' (ls ! i'') = Some l1'"
           using Cons(2) ls_def \<open>to_nat i = Some i''\<close>
@@ -4104,8 +4104,8 @@ next
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(8) by auto
       qed
-      ultimately have "acopy_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
-        using a_data.copy_memory_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
+      ultimately have "aread_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
+        using a_data.read_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
   qed
@@ -4120,7 +4120,7 @@ lemma locs_safe_update_some:
       and "alocs_safe s2 m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "acheck m0 L1"
+      and "adisjoined m0 L1"
       and "s |\<inter>| L2' = {||}"
       and "the (locations m0 is1 l1) |\<inter>| L2' = {||}"
       and "l1' |\<notin>| L2'"
@@ -4228,7 +4228,7 @@ next
             using Cons.prems(1,3,4) a_data.noloops by blast
           with Cons(5) have "alocs_safe (finsert l1 s) m0 l1' = Some L1'" using a_data.locs_safe_nin_same[of s m0 l1' L1' "finsert l1 s"] by blast
           moreover from Cons(7) have "\<forall>l|\<in>|L' |-| L1'. m1 $ l = m0 $ l" using \<open>L' |\<subseteq>| L1\<close> by blast
-          moreover from Cons(9) have "acheck m0 L'" using \<open>L' |\<subseteq>| L1\<close> by auto
+          moreover from Cons(9) have "adisjoined m0 L'" using \<open>L' |\<subseteq>| L1\<close> by auto
           moreover from Cons(2,10,11) have "finsert l1 s |\<inter>| L2' = {||}"
           proof -
             from LL_def have "l1 |\<in>| LL" using locations_l_in_L by blast
@@ -4254,7 +4254,7 @@ next
           moreover have "L1' |\<subseteq>| L'" using Cons(5) L'_def a_data.mlookup_locs_subs[OF *, of s _ "(finsert l1 s)"] by blast
           moreover from L'_def have "alocs m0 l'' = Some L'" unfolding a_data.locs_def
             using a_data.locs_safe_subset_same by blast
-          ultimately have "L |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.check_def using m1_ls x_def l''_def by blast
+          ultimately have "L |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.disjoined_def using m1_ls x_def l''_def by blast
           then show ?thesis using \<open>L |\<subseteq>| L1\<close> Cons(7) a_data.locs_safe_same[of "finsert l1 s" m0 x L m1]
             L_def by blast
         qed
@@ -4276,7 +4276,7 @@ lemma locs_update_some:
       and "alocs m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "acheck m0 L1"
+      and "adisjoined m0 L1"
       and "the (locations m0 is1 l1) |\<inter>| L2' = {||}"
       and "l1' |\<notin>| L2'"
     shows "\<exists>L. alocs m1 l1 = Some L"
@@ -4291,7 +4291,7 @@ lemma locs_safe_update_subs:
       and "alocs_safe s2 m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "acheck m0 L1"
+      and "adisjoined m0 L1"
       and "alocs_safe s m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
   using assms
@@ -4369,7 +4369,7 @@ next
   proof (cases "m1 $ l1")
     case None
     then show ?thesis
-      by (metis Cons.prems(9) option.distinct(1) a_data.copy_memory_safe_cases a_data.locs_safe_copy_memory_safe)
+      by (metis Cons.prems(9) option.distinct(1) a_data.read_safe_cases a_data.locs_safe_read_safe)
   next
     case (Some a)
     then show ?thesis
@@ -4419,7 +4419,7 @@ next
             next
               from Cons(7) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by auto
             next
-              from Cons(9) show "acheck m0 LL"
+              from Cons(9) show "adisjoined m0 LL"
                 using calculation(2) by auto
             next
               from L_def show "alocs_safe (finsert l1 s) m1 l'' = Some L" using \<open>x = l''\<close> by simp
@@ -4448,7 +4448,7 @@ next
               then have "L1' |\<subseteq>| LL" using Cons(5) a_data.mlookup_locs_subs[OF *, of s _ "(finsert l1 s)"] by blast
               moreover from LL_def have "alocs m0 l'' = Some LL"
                 by (metis all_not_fin_conv data.locs_safe_nin_same fempty_fminus alocs_safe_def a_data.locs_def)
-              ultimately have "L' |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.check_def
+              ultimately have "L' |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.disjoined_def
                 using m1_ls \<open>L' |\<subseteq>| L1\<close> False \<open>xs $ i' = Some x\<close> \<open>xs $ j' = Some l''\<close> by blast
               then have "\<forall>l|\<in>|L'. m1 $ l = m0 $ l" using Cons(7) `L' |\<subseteq>| L1` by auto
               then show ?thesis using a_data.locs_safe_same[OF L'_def] using L_def by simp
@@ -4471,7 +4471,7 @@ lemma locs_update_subs:
       and "alocs m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
-      and "acheck m0 L1"
+      and "adisjoined m0 L1"
       and "alocs m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
   using locs_safe_update_subs[OF assms(1,2) _ _ _ assms(6,7,8)] unfolding alocs_def
@@ -4479,34 +4479,34 @@ lemma locs_update_subs:
 
 section \<open>Initialize Memory\<close>
 
-function minit :: "'v adata \<Rightarrow> 'v memory \<Rightarrow> nat \<times> 'v memory" where
-  "minit (adata.Value x) m = length_append m (mdata.Value x)"
-| "minit (adata.Array ds) m = (let (ns, m') = fold_map minit ds m in (length_append m' (mdata.Array ns)))"
+function "write" :: "'v adata \<Rightarrow> 'v memory \<Rightarrow> nat \<times> 'v memory" where
+  "write (adata.Value x) m = length_append m (mdata.Value x)"
+| "write (adata.Array ds) m = (let (ns, m') = fold_map write ds m in (length_append m' (mdata.Array ns)))"
   by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(s,b). size (s))", auto)
   by (meson Suc_n_not_le_n leI size_list_estimation')
 
-lemma minit_sprefix: "sprefix m0 (snd (minit cd m0))"
-proof (induction arbitrary: m0 rule: minit.induct)
+lemma write_sprefix: "sprefix m0 (snd (write cd m0))"
+proof (induction arbitrary: m0 rule: write.induct)
   case (1 x m)
   then show ?case unfolding sprefix_def by (auto simp add:length_append_def)
 next
   case (2 ds m)
-  then have "prefix m0 (snd (fold_map minit ds m0))"
+  then have "prefix m0 (snd (fold_map write ds m0))"
   proof (induction ds arbitrary: m0)
     case Nil
     then show ?case by (simp add: prefix_def)
   next
     case (Cons a ds')
-    then have IH: "\<And>m0. prefix m0 (snd (fold_map minit ds' m0))" by simp
+    then have IH: "\<And>m0. prefix m0 (snd (fold_map write ds' m0))" by simp
     show ?case
     proof (auto split:prod.split)
       fix m0 x1 x2 x1a x2a
-      assume *: "fold_map minit ds' x2 = (x1a, x2a)"
-        and **: "minit a m0 = (x1, x2)"
+      assume *: "fold_map write ds' x2 = (x1a, x2a)"
+        and **: "write a m0 = (x1, x2)"
 
-      from IH have "prefix x2 (snd (fold_map minit ds' x2))" by simp
+      from IH have "prefix x2 (snd (fold_map write ds' x2))" by simp
       then have "prefix x2 x2a" using * by simp
       moreover from ** have "prefix m0 x2" using Cons.prems[of a m0] sprefix_prefix by simp
       ultimately show "prefix m0 x2a" unfolding prefix_def by auto
@@ -4516,10 +4516,10 @@ next
     by (auto split:prod.split simp add:length_append_def)
 qed
 
-lemma loc_minit_take[simp]:
+lemma loc_write_take[simp]:
   assumes "i \<le> j"
       and "j < length ds"
-    shows "loc (snd (fold_map minit (take i ds) m0)) \<subseteq> loc (snd (fold_map minit (take j ds) m0))"
+    shows "loc (snd (fold_map write (take i ds) m0)) \<subseteq> loc (snd (fold_map write (take j ds) m0))"
   using assms
 proof (induction rule: dec_induct)
   case base
@@ -4527,14 +4527,14 @@ proof (induction rule: dec_induct)
 next
   case (step i)
   moreover from step(4)
-  have "prefix (snd (fold_map minit (take i ds) m0)) (snd (fold_map minit (take (Suc i) ds) m0))"
-    by (simp add: Suc_lessD assms fold_map_take_snd minit_sprefix sprefix_prefix)
+  have "prefix (snd (fold_map write (take i ds) m0)) (snd (fold_map write (take (Suc i) ds) m0))"
+    by (simp add: Suc_lessD assms fold_map_take_snd write_sprefix sprefix_prefix)
   ultimately show ?case unfolding loc_def prefix_def by auto
 qed
 
-lemma minit_fold_map_sprefix:
+lemma write_fold_map_sprefix:
   assumes "ds \<noteq> []"
-  shows "sprefix m0 (snd (fold_map minit ds m0))"
+  shows "sprefix m0 (snd (fold_map write ds m0))"
   using assms
 proof (induction ds arbitrary: m0)
   case Nil
@@ -4544,18 +4544,18 @@ next
   show ?case
   proof (cases ds)
     case Nil
-    then show ?thesis using minit_sprefix[of m0 a] by (auto split:prod.split)
+    then show ?thesis using write_sprefix[of m0 a] by (auto split:prod.split)
   next
     case *: (Cons a' list)
-    then have "sprefix (snd (minit a m0)) (snd (fold_map minit ds (snd (minit a m0))))"
+    then have "sprefix (snd (write a m0)) (snd (fold_map write ds (snd (write a m0))))"
       using Cons by auto
-    then show ?thesis using minit_sprefix[of m0 a] sprefix_trans by (auto split:prod.split)
+    then show ?thesis using write_sprefix[of m0 a] sprefix_trans by (auto split:prod.split)
   qed 
 qed
 
-lemma minit_fold_map_mono:
+lemma write_fold_map_mono:
   assumes "prefix ds' ds"
-  shows "prefix (snd (fold_map minit ds' m0)) (snd (fold_map minit ds m0))"
+  shows "prefix (snd (fold_map write ds' m0)) (snd (fold_map write ds m0))"
   using assms
 proof (induction ds' arbitrary: ds m0)
   case Nil
@@ -4566,7 +4566,7 @@ proof (induction ds' arbitrary: ds m0)
   next
     case (Cons a ds)
     then show ?case unfolding prefix_def apply (auto split:prod.split)
-      by (metis append.assoc minit_sprefix sndI sprefix_def)
+      by (metis append.assoc write_sprefix sndI sprefix_def)
   qed
 next
   case (Cons a ds')
@@ -4581,14 +4581,14 @@ next
   qed
 qed
 
-lemma minit_fold_map_smono:
+lemma write_fold_map_smono:
   assumes "sprefix ds' ds"
-  shows "sprefix (snd (fold_map minit ds' m0)) (snd (fold_map minit ds m0))"
+  shows "sprefix (snd (fold_map write ds' m0)) (snd (fold_map write ds m0))"
   using assms
 proof (induction ds' arbitrary: ds m0)
   case Nil
   then have "ds \<noteq> []" unfolding sprefix_def by blast
-  then show ?case using minit_fold_map_sprefix by auto
+  then show ?case using write_fold_map_sprefix by auto
 next
   case (Cons a ds')
   then show ?case
@@ -4601,32 +4601,32 @@ next
   qed
 qed
 
-lemma minit_prefix_mono:
+lemma write_prefix_mono:
   assumes "prefix ds' ds"
   shows
     "prefix
-      (butlast (snd (minit (adata.Array ds') m0)))
-      (butlast (snd (minit (adata.Array ds) m0)))"
+      (butlast (snd (write (adata.Array ds') m0)))
+      (butlast (snd (write (adata.Array ds) m0)))"
   using assms apply (auto split: prod.split simp add:length_append_def)
-  using minit_fold_map_mono
+  using write_fold_map_mono
   by (metis snd_conv)
 
-lemma minit_prefix_smono:
+lemma write_prefix_smono:
   assumes "sprefix ds' ds"
   shows
     "sprefix
-      (butlast (snd (minit (adata.Array ds') m0)))
-      (butlast (snd (minit (adata.Array ds) m0)))"
+      (butlast (snd (write (adata.Array ds') m0)))
+      (butlast (snd (write (adata.Array ds) m0)))"
   using assms apply (auto split: prod.split simp add:length_append_def)
-  using minit_fold_map_smono by (metis snd_conv)
+  using write_fold_map_smono by (metis snd_conv)
 
-lemma minit_length_inc: "length (snd (minit cd m0)) > length m0"
-  using minit_sprefix[of m0 cd] unfolding sprefix_def by auto
+lemma write_length_inc: "length (snd (write cd m0)) > length m0"
+  using write_sprefix[of m0 cd] unfolding sprefix_def by auto
 
-lemma minit_Array_take_Suc:
+lemma write_Array_take_Suc:
   assumes "n < length ds"
-    shows "fst (minit (adata.Array (take (Suc n) ds)) m0)
-          = length (snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))"
+    shows "fst (write (adata.Array (take (Suc n) ds)) m0)
+          = length (snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
   using assms
 proof (induction ds arbitrary: m0 n)
   case Nil
@@ -4640,28 +4640,28 @@ next
   next
     case (Suc n')
     then have
-      "fst (minit (adata.Array (take (Suc n') ds)) (snd (minit a m0)))
-      = length (snd (minit (ds ! n') (butlast (snd (minit (adata.Array (take n' ds)) (snd (minit a m0)))))))"
+      "fst (write (adata.Array (take (Suc n') ds)) (snd (write a m0)))
+      = length (snd (write (ds ! n') (butlast (snd (write (adata.Array (take n' ds)) (snd (write a m0)))))))"
       using Cons by auto
     then show ?thesis using Suc by (auto simp add:length_append_def split:prod.split)
   qed
 qed
 
-lemma butlast_minit[simp]:
-  "butlast (snd (minit (adata.Array ds) m0)) = snd (fold_map minit ds m0)"
+lemma butlast_write[simp]:
+  "butlast (snd (write (adata.Array ds) m0)) = snd (fold_map write ds m0)"
   by (auto split:prod.split simp add:length_append_def)
 
-lemma minit_sprefix_take:
+lemma write_sprefix_take:
   assumes "n < length ds"
   shows
     "sprefix
-      (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-      (snd (minit (Array ds) m0))"
+      (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+      (snd (write (Array ds) m0))"
 proof -
   from assms have
     "prefix
-      (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-      (snd (fold_map minit ds m0))"
+      (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+      (snd (fold_map write ds m0))"
   proof (induction ds arbitrary: m0 n)
     case Nil
     then show ?case by simp
@@ -4671,22 +4671,22 @@ proof -
     proof (cases n)
       case 0
       then show ?thesis apply (auto split:prod.split)
-        by (metis fold_map_prefix minit_sprefix snd_eqD sprefix_prefix)
+        by (metis fold_map_prefix write_sprefix snd_eqD sprefix_prefix)
     next
       case (Suc n')
       then have "n' < length xs" using Cons(2) by simp
       then have
         "prefix
-          (snd (minit (xs ! n') (snd (fold_map minit (take n' xs) (snd (minit a m0))))))
-          (snd (fold_map minit xs (snd (minit a m0))))"
-        using Cons(1)[of "n'" "(snd (minit a m0))"] by simp
+          (snd (write (xs ! n') (snd (fold_map write (take n' xs) (snd (write a m0))))))
+          (snd (fold_map write xs (snd (write a m0))))"
+        using Cons(1)[of "n'" "(snd (write a m0))"] by simp
       moreover have "((a # xs) ! n) = (xs ! n')" using Suc by simp
       moreover have
-        "(snd (fold_map minit (take n' xs) (snd (minit a m0))))
-        = (snd (fold_map minit (take n (a # xs)) m0))"
+        "(snd (fold_map write (take n' xs) (snd (write a m0))))
+        = (snd (fold_map write (take n (a # xs)) m0))"
         using Suc(1) by (auto split:prod.split)
       moreover have
-        "(snd (fold_map minit (a # xs) m0)) = (snd (fold_map minit xs (snd (minit a m0))))"
+        "(snd (fold_map write (a # xs) m0)) = (snd (fold_map write xs (snd (write a m0))))"
         by (auto split:prod.split)
       ultimately show ?thesis by simp
     qed
@@ -4695,72 +4695,72 @@ proof -
     by (smt (verit) Nil_is_append_conv append_assoc not_Cons_self2 prefix_def sprefix_def)
 qed
 
-lemma minit_length_suc: "length (snd (minit ds m)) = Suc (fst (minit ds m))"
+lemma write_length_suc: "length (snd (write ds m)) = Suc (fst (write ds m))"
   by (cases ds) (auto simp add:length_append_def split:prod.split)
 
-lemma minit_length_suc2:
-  assumes "minit ds m0 = (l, m)"
+lemma write_length_suc2:
+  assumes "write ds m0 = (l, m)"
   shows "l = length m - 1"
-  using assms minit_length_suc[of ds m0] by simp
+  using assms write_length_suc[of ds m0] by simp
 
-lemma minit_fold_map_less:
-  assumes "n < length (fst (fold_map minit ds m))"
-  shows "fst (fold_map minit ds m) ! n < fst (minit (Array ds) m)"
+lemma write_fold_map_less:
+  assumes "n < length (fst (fold_map write ds m))"
+  shows "fst (fold_map write ds m) ! n < fst (write (Array ds) m)"
   using assms
 proof -
   have "n < length ds" using assms
     by (simp add: fold_map_length)
 
-  have "fst (fold_map minit ds m) ! n = fst (minit (ds ! n) (snd (fold_map minit (take n ds) m)))"
+  have "fst (fold_map write ds m) ! n = fst (write (ds ! n) (snd (fold_map write (take n ds) m)))"
     using fold_map_take_fst[OF assms] by simp
-  also have "Suc (\<dots>) = length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m))))"
-    by (simp add: minit_length_suc)
-  also have "\<dots> < length (snd (minit (adata.Array ds) m))"
-    using minit_sprefix_take[OF \<open>n < length ds\<close>, of m] unfolding sprefix_def by auto
-  also have "\<dots> = Suc (fst (minit (adata.Array ds) m))"
+  also have "Suc (\<dots>) = length (snd (write (ds ! n) (snd (fold_map write (take n ds) m))))"
+    by (simp add: write_length_suc)
+  also have "\<dots> < length (snd (write (adata.Array ds) m))"
+    using write_sprefix_take[OF \<open>n < length ds\<close>, of m] unfolding sprefix_def by auto
+  also have "\<dots> = Suc (fst (write (adata.Array ds) m))"
     by (auto split:prod.split simp add: length_append_def)
   finally show ?thesis by blast
 qed
 
-lemma minit_obtain:
+lemma write_obtain:
   obtains xs
-    where "snd (minit (Array ds) m0) $ fst (minit (Array ds) m0) = Some (mdata.Array xs)"
+    where "snd (write (Array ds) m0) $ fst (write (Array ds) m0) = Some (mdata.Array xs)"
       and "length xs = length ds"
-      and "\<forall>n < length xs. xs!n < fst (minit (Array ds) m0)
-          \<and> xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))
-          \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0)))) (snd (minit (Array ds) m0))"
+      and "\<forall>n < length xs. xs!n < fst (write (Array ds) m0)
+          \<and> xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))
+          \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m0)))) (snd (write (Array ds) m0))"
 proof -
   obtain xs m
-    where *: "snd (minit (Array ds) m0) = m @ [mdata.Array xs]"
-      and **: "xs = fst (fold_map minit ds m0)"
-      and ***: "fst (minit (Array ds) m0) = length m"
+    where *: "snd (write (Array ds) m0) = m @ [mdata.Array xs]"
+      and **: "xs = fst (fold_map write ds m0)"
+      and ***: "fst (write (Array ds) m0) = length m"
     apply (auto simp add:length_append_def split:prod.split prod.split)
     by (simp add: case_prod_beta')
 
-  from ** have "\<forall>n < length xs. xs!n < fst (minit (Array ds) m0)
-    \<and> xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))
-    \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0)))) (snd (minit (Array ds) m0))"
-    using fold_map_take_fst minit_fold_map_less unfolding prefix_def
-    by (metis fold_map_length minit_sprefix_take sprefix_def)
+  from ** have "\<forall>n < length xs. xs!n < fst (write (Array ds) m0)
+    \<and> xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))
+    \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m0)))) (snd (write (Array ds) m0))"
+    using fold_map_take_fst write_fold_map_less unfolding prefix_def
+    by (metis fold_map_length write_sprefix_take sprefix_def)
   moreover from ** have "(length xs = length ds)" using Utils.fold_map_length by metis
   moreover from * ***
-  have "snd (minit (Array ds) m0) $ fst (minit (Array ds) m0) = Some (mdata.Array xs)"
+  have "snd (write (Array ds) m0) $ fst (write (Array ds) m0) = Some (mdata.Array xs)"
     by auto
   ultimately show ?thesis using that by blast
 qed
 
-lemma minit_array_less:
-  assumes "minit cd m = (l, m')"
+lemma write_array_less:
+  assumes "write cd m = (l, m')"
       and "m'$l = Some (mdata.Array xs)"
       and "xs $ i = Some l'"
     shows "l' < l"
   using assms
 proof -
   from assms obtain "ds" where 2: "cd = Array ds" by (case_tac cd, auto simp add: length_append_def)
-  then have "snd (minit (Array ds) m) $ fst (minit (Array ds) m) = Some (mdata.Array xs)"
+  then have "snd (write (Array ds) m) $ fst (write (Array ds) m) = Some (mdata.Array xs)"
     using assms by auto
   moreover have "i < length xs" using assms unfolding nth_safe_def by (simp split:if_split_asm)
-  ultimately show ?thesis using minit_obtain[of ds m]
+  ultimately show ?thesis using write_obtain[of ds m]
     by (metis "2" assms(1,3) mdata.inject(2) nth_safe_def option.inject split_pairs2)
 qed
 
@@ -4768,91 +4768,91 @@ lemma locs_notin_s:
   assumes "n < length ds"
       and "n < length xs"
       and "\<forall>n < length xs.
-            xs!n < fst (minit (Array ds) m0) \<and>
-            xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))"
-      and "\<forall>l\<ge>length m0. l < length (snd (minit (adata.Array ds) m0)) \<longrightarrow> l |\<notin>| s"
-    shows "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-            l < length (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-            \<longrightarrow> l |\<notin>| (finsert (fst (minit (adata.Array ds) m0)) s)"
+            xs!n < fst (write (Array ds) m0) \<and>
+            xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
+      and "\<forall>l\<ge>length m0. l < length (snd (write (adata.Array ds) m0)) \<longrightarrow> l |\<notin>| s"
+    shows "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+            l < length (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+            \<longrightarrow> l |\<notin>| (finsert (fst (write (adata.Array ds) m0)) s)"
 proof (rule allI, rule impI, rule impI)
   fix l
-  assume *: "length (snd (fold_map minit (take n ds) m0)) \<le> l"
-    and **: "l < length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))"
+  assume *: "length (snd (fold_map write (take n ds) m0)) \<le> l"
+    and **: "l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"
   from * have "l\<ge>length m0"
-    by (meson dual_order.trans fold_map_geq minit_length_inc order.strict_implies_order)
-  moreover from assms(2) ** have "l < length (snd (minit (adata.Array ds) m0))"
-    using minit_sprefix_take[OF assms(1), of m0] unfolding sprefix_def by fastforce
-  moreover have "l \<noteq> fst (minit (adata.Array ds) m0)"
+    by (meson dual_order.trans fold_map_geq write_length_inc order.strict_implies_order)
+  moreover from assms(2) ** have "l < length (snd (write (adata.Array ds) m0))"
+    using write_sprefix_take[OF assms(1), of m0] unfolding sprefix_def by fastforce
+  moreover have "l \<noteq> fst (write (adata.Array ds) m0)"
   proof -
-    from minit_length_suc have
-      "length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-      = Suc (fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))"
+    from write_length_suc have
+      "length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+      = Suc (fst (write (ds ! n) (snd (fold_map write (take n ds) m0))))"
       by auto
-    also from assms(3) have "\<dots> \<le> fst (minit (adata.Array ds) m0)" using assms(2) by auto
+    also from assms(3) have "\<dots> \<le> fst (write (adata.Array ds) m0)" using assms(2) by auto
     finally show ?thesis using ** by simp
   qed
-  ultimately show "l |\<notin>| finsert (fst (minit (adata.Array ds) m0)) s" using assms(4) by simp
+  ultimately show "l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s" using assms(4) by simp
 qed
 
-lemma length_minit_minit:
+lemma length_write_write:
   assumes "n < length ds"
-      and "\<forall>l\<ge>length m0. l < length (snd (minit (adata.Array ds) m0)) \<longrightarrow> l |\<notin>| s"
-      and "xs!n < fst (minit (Array ds) m0)"
-      and "xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))"
-  shows "\<forall>l\<ge>length (butlast (snd (minit (adata.Array (take n ds)) m0))).
-         l < length (snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0))))) \<longrightarrow>
-         l |\<notin>| finsert (fst (minit (adata.Array ds) m0)) s"
+      and "\<forall>l\<ge>length m0. l < length (snd (write (adata.Array ds) m0)) \<longrightarrow> l |\<notin>| s"
+      and "xs!n < fst (write (Array ds) m0)"
+      and "xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
+  shows "\<forall>l\<ge>length (butlast (snd (write (adata.Array (take n ds)) m0))).
+         l < length (snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0))))) \<longrightarrow>
+         l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s"
 proof (rule allI, rule impI, rule impI)
   fix l
-  assume *: "length (butlast (snd (minit (adata.Array (take n ds)) m0))) \<le> l"
-     and **: "l < length (snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))"
+  assume *: "length (butlast (snd (write (adata.Array (take n ds)) m0))) \<le> l"
+     and **: "l < length (snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
   from * have "l\<ge>length m0"
-    by (metis diff_Suc_1 dual_order.trans length_butlast less_Suc_eq_le minit_length_inc minit_length_suc)
-  moreover from ** have "l < length (snd (minit (adata.Array ds) m0))"
+    by (metis diff_Suc_1 dual_order.trans length_butlast less_Suc_eq_le write_length_inc write_length_suc)
+  moreover from ** have "l < length (snd (write (adata.Array ds) m0))"
   proof -
-    from ** have "l < length (snd (fold_map minit (take (Suc n) ds) m0))"
-      using fold_map_take_snd assms(1) by (metis butlast_minit)
+    from ** have "l < length (snd (fold_map write (take (Suc n) ds) m0))"
+      using fold_map_take_snd assms(1) by (metis butlast_write)
     then show ?thesis
       by (metis (no_types, lifting) assms(1) dual_order.strict_trans fold_map_take_snd
-          minit_sprefix_take sprefix_length)
+          write_sprefix_take sprefix_length)
   qed
   ultimately have "l |\<notin>| s" using assms(2) by blast
-  moreover have "l \<noteq> fst (minit (adata.Array ds) m0)" using assms(3,4)
-    by (metis "**" butlast_minit minit_length_suc not_less_eq)
-  ultimately show "l |\<notin>| finsert (fst (minit (adata.Array ds) m0)) s" by blast
+  moreover have "l \<noteq> fst (write (adata.Array ds) m0)" using assms(3,4)
+    by (metis "**" butlast_write write_length_suc not_less_eq)
+  ultimately show "l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s" by blast
 qed
 
-lemma marray_lookup_minit_take:
+lemma marray_lookup_write_take:
   assumes "is \<noteq> []"
-      and "minit (adata.Array ds) m = (l, m')"
+      and "write (adata.Array ds) m = (l, m')"
       and "m' $ l = Some (mdata.Array ns)"
       and "ns $ i = Some l'"
       and "marray_lookup m'' is l' = Some (lx, nsx, ix)"
       and "prefix m' m''"
-    shows "marray_lookup (snd (fold_map minit (take (Suc i) ds) m)) is l' = marray_lookup m'' is l'"
+    shows "marray_lookup (snd (fold_map write (take (Suc i) ds) m)) is l' = marray_lookup m'' is l'"
   using assms
 proof (induction "is" arbitrary: m l m' ns l' m'' ds i rule: list_nonempty_induct)
   case (single i0)
 
   from single(1,2)
-  have 1: "ns!i = fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
-   and 2: "prefix (snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))) (snd (minit (Array ds) m))"
-  using minit_obtain[of ds m] nth_safe_length single.prems(3)
+  have 1: "ns!i = fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
+   and 2: "prefix (snd (write (ds!i) (snd (fold_map write (take i ds) m)))) (snd (write (Array ds) m))"
+  using write_obtain[of ds m] nth_safe_length single.prems(3)
   by (metis fstI mdata.inject(2) option.inject sndI)+
 
   have
-    3: "snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))
-      = snd (fold_map minit (take (Suc i) ds) m)"
-    by (metis fold_map_take_snd fst_conv mdata.inject(2) minit_obtain nth_safe_length
+    3: "snd (write (ds!i) (snd (fold_map write (take i ds) m)))
+      = snd (fold_map write (take (Suc i) ds) m)"
+    by (metis fold_map_take_snd fst_conv mdata.inject(2) write_obtain nth_safe_length
         option.inject single.prems(1,2,3) snd_conv)
 
-  then have "prefix (snd (fold_map minit (take (Suc i) ds) m)) m''" using single(5,1) 2 prefix_def
+  then have "prefix (snd (fold_map write (take (Suc i) ds) m)) m''" using single(5,1) 2 prefix_def
     by (metis append.assoc fst_conv fst_swap swap_simp)
 
-  moreover have "(snd (fold_map minit (take (Suc i) ds) m)) $ l' \<noteq> None" using 1 3 single.prems(3)
-    by (metis less_Suc_eq minit_length_suc nth_safe_def option.distinct(1) option.inject)
+  moreover have "(snd (fold_map write (take (Suc i) ds) m)) $ l' \<noteq> None" using 1 3 single.prems(3)
+    by (metis less_Suc_eq write_length_suc nth_safe_def option.distinct(1) option.inject)
 
-  ultimately have "(snd (fold_map minit (take (Suc i) ds) m)) $ l' = m'' $ l'"
+  ultimately have "(snd (fold_map write (take (Suc i) ds) m)) $ l' = m'' $ l'"
     using single nth_safe_prefix by fastforce
   then show ?case by (auto simp add:case_memory_def)
 next
@@ -4866,58 +4866,58 @@ next
     and l4: "marray_lookup m'' is0 l1 = Some (lx, nsx, ix)"
     using marray_lookup_obtain_multi[of m'' i0 i0' "is0'" l' "(lx, nsx, ix)"] by blast
 
-  from cons have 0: "\<forall>n < length ns. ns!n < fst (minit (Array ds) m)
-          \<and> ns!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m)))
-          \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m)))) (snd (minit (Array ds) m))"
-    using minit_obtain[of ds m]
+  from cons have 0: "\<forall>n < length ns. ns!n < fst (write (Array ds) m)
+          \<and> ns!n = fst (write (ds!n) (snd (fold_map write (take n ds) m)))
+          \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m)))) (snd (write (Array ds) m))"
+    using write_obtain[of ds m]
     by (metis (no_types, lifting) fst_conv mdata.inject(2) option.inject snd_conv)
-  with cons have 1: "ns!i = fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
+  with cons have 1: "ns!i = fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
     by (metis nth_safe_length)
 
-  have "fst (minit (ds!i) (snd (fold_map minit (take i ds) m))) = l'"
+  have "fst (write (ds!i) (snd (fold_map write (take i ds) m))) = l'"
     by (metis "1" cons.prems(3) nth_safe_def nth_safe_length option.sel)
   then have
-    "snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))
-    $ fst (minit (ds!i) (snd (fold_map minit (take i ds) m))) = Some (mdata.Array ns1)"
+    "snd (write (ds!i) (snd (fold_map write (take i ds) m)))
+    $ fst (write (ds!i) (snd (fold_map write (take i ds) m))) = Some (mdata.Array ns1)"
     using l1 cons(7)
-    by (smt (verit) "0" cons.prems(1,3) lessI minit_length_suc nth_safe_length nth_safe_prefix
+    by (smt (verit) "0" cons.prems(1,3) lessI write_length_suc nth_safe_length nth_safe_prefix
         nth_safe_some snd_conv)
   then obtain "ds'" where 2: "ds!i = adata.Array ds'" 
     apply (case_tac "ds!i") by (auto simp add:length_append_def)
 
   have 3:
-    "snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
-      $ fst (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
+    "snd (write (ds ! i) (snd (fold_map write (take i ds) m)))
+      $ fst (write (ds ! i) (snd (fold_map write (take i ds) m)))
     = Some (mdata.Array ns1)"
-    by (metis (no_types, lifting) "0" "2" cons.prems(1,3,5) l1 minit_obtain nth_safe_length
+    by (metis (no_types, lifting) "0" "2" cons.prems(1,3,5) l1 write_obtain nth_safe_length
         nth_safe_prefix nth_safe_some option.inject snd_eqD)
 
   have 4:
     "marray_lookup
-      (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1
+      (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1
     = marray_lookup m'' is0 l1"
   proof (rule cons(2)[
         of
         _
-        "(snd (fold_map minit (take i ds) m))"
-        "fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
-        "snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))",
+        "(snd (fold_map write (take i ds) m))"
+        "fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
+        "snd (write (ds!i) (snd (fold_map write (take i ds) m)))",
         OF _ _ l3 l4])
     from 1 2 show
-      "minit (adata.Array ds') (snd (fold_map minit (take i ds) m))
-      = (fst (minit (ds ! i) (snd (fold_map minit (take i ds) m))),
-        snd (minit (ds ! i) (snd (fold_map minit (take i ds) m))))"
+      "write (adata.Array ds') (snd (fold_map write (take i ds) m))
+      = (fst (write (ds ! i) (snd (fold_map write (take i ds) m))),
+        snd (write (ds ! i) (snd (fold_map write (take i ds) m))))"
       by simp
   next
     from 3 show
-      "snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
-       $ fst (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
+      "snd (write (ds ! i) (snd (fold_map write (take i ds) m)))
+       $ fst (write (ds ! i) (snd (fold_map write (take i ds) m)))
       = Some (mdata.Array ns1)" by simp
   next
-    have "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m'" using cons(3) 0
+    have "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m'" using cons(3) 0
       by (metis cons.prems(3) nth_safe_length snd_conv)
     moreover have "prefix m' m''" using cons(7) by simp
-    ultimately show "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m''"
+    ultimately show "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m''"
       unfolding prefix_def by auto
   qed
 
@@ -4926,26 +4926,26 @@ next
   also from 4 have
     "\<dots> =
       marray_lookup
-        (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1" ..
-  also have "\<dots> =  marray_lookup (snd (fold_map minit (take (Suc i) ds) m)) (i0 # is0) l'"
+        (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1" ..
+  also have "\<dots> =  marray_lookup (snd (fold_map write (take (Suc i) ds) m)) (i0 # is0) l'"
   proof -
     have
       "prefix
-        (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m))))
-        (snd (fold_map minit (take (Suc i) ds) m))"
+        (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m))))
+        (snd (fold_map write (take (Suc i) ds) m))"
       by (metis (no_types, lifting) "2" "3" l3 cons.prems(1,2,3) fold_map_take_snd
-          fst_conv mdata.inject(2) minit_obtain nth_safe_length option.inject snd_conv)
+          fst_conv mdata.inject(2) write_obtain nth_safe_length option.inject snd_conv)
     then have
-      "marray_lookup (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1
-       =marray_lookup (snd (fold_map minit (take (Suc i) ds) m)) is0 l1"
+      "marray_lookup (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1
+       =marray_lookup (snd (fold_map write (take (Suc i) ds) m)) is0 l1"
       by (metis calculation cons.prems(4) marray_lookup_prefix)
     moreover have
-      "marray_lookup (snd (fold_map minit (take (Suc i) ds) m)) is0 l1
-       = marray_lookup (snd (fold_map minit (take (Suc i) ds) m)) (i0 # is0) l'"
+      "marray_lookup (snd (fold_map write (take (Suc i) ds) m)) is0 l1
+       = marray_lookup (snd (fold_map write (take (Suc i) ds) m)) (i0 # is0) l'"
     proof -
-      have "(snd (fold_map minit (take (Suc i) ds) m)) $ l' = Some (mdata.Array ns1)" using l1
+      have "(snd (fold_map write (take (Suc i) ds) m)) $ l' = Some (mdata.Array ns1)" using l1
         by (metis "3" cons.prems(1,2,3) fold_map_take_snd fst_conv mdata.inject(2)
-            minit_obtain nth_safe_length nth_safe_some option.inject snd_conv)
+            write_obtain nth_safe_length nth_safe_some option.inject snd_conv)
       then show ?thesis using l2 l3 is0_def by (auto simp add: case_memory_def)
     qed
     ultimately show ?thesis by simp
@@ -4953,13 +4953,13 @@ next
   finally show ?case by simp
 qed
 
-lemma locations_lookup_minit_take:
-  assumes "minit (adata.Array ds) m = (l, m')"
+lemma locations_lookup_write_take:
+  assumes "write (adata.Array ds) m = (l, m')"
       and "m' $ l = Some (mdata.Array ns)"
       and "ns $ i = Some l'"
       and "locations m'' is l' = Some L"
       and "prefix m' m''"
-    shows "locations (snd (fold_map minit (take (Suc i) ds) m)) is l' = locations m'' is l'"
+    shows "locations (snd (fold_map write (take (Suc i) ds) m)) is l' = locations m'' is l'"
   using assms
 proof (induction "is" arbitrary: m l m' ns l' m'' ds i L)
   case Nil
@@ -4976,57 +4976,57 @@ next
     using locations_obtain[of m'' i0 is0 l' L] by blast
 
   from Cons have
-    0: "\<forall>n < length ns. ns!n < fst (minit (Array ds) m)
-       \<and> ns!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m)))
-       \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m)))) (snd (minit (Array ds) m))"
-    using minit_obtain[of ds m]
+    0: "\<forall>n < length ns. ns!n < fst (write (Array ds) m)
+       \<and> ns!n = fst (write (ds!n) (snd (fold_map write (take n ds) m)))
+       \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m)))) (snd (write (Array ds) m))"
+    using write_obtain[of ds m]
     by (metis (no_types, lifting) fst_conv mdata.inject(2) option.inject snd_conv)
-  with Cons have 1: "ns!i = fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
+  with Cons have 1: "ns!i = fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
     by (metis nth_safe_length)
 
-  have "fst (minit (ds!i) (snd (fold_map minit (take i ds) m))) = l'"
+  have "fst (write (ds!i) (snd (fold_map write (take i ds) m))) = l'"
     by (metis "1" Cons.prems(3) nth_safe_def nth_safe_length option.sel)
   then have
-    "snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))
-    $ fst (minit (ds!i) (snd (fold_map minit (take i ds) m))) = Some (mdata.Array ns1)"
+    "snd (write (ds!i) (snd (fold_map write (take i ds) m)))
+    $ fst (write (ds!i) (snd (fold_map write (take i ds) m))) = Some (mdata.Array ns1)"
     using l1 Cons
-    by (smt (verit) "0" Cons lessI minit_length_suc nth_safe_length nth_safe_prefix nth_safe_some
+    by (smt (verit) "0" Cons lessI write_length_suc nth_safe_length nth_safe_prefix nth_safe_some
         snd_conv)
   then obtain "ds'" where 2: "ds!i = adata.Array ds'" 
     apply (case_tac "ds!i") by (auto simp add:length_append_def)
 
   have
-    3: "snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
-        $ fst (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
+    3: "snd (write (ds ! i) (snd (fold_map write (take i ds) m)))
+        $ fst (write (ds ! i) (snd (fold_map write (take i ds) m)))
       = Some (mdata.Array ns1)"
-    by (metis (no_types, lifting) "0" "2" Cons(2,4,6) l1 minit_obtain nth_safe_length
+    by (metis (no_types, lifting) "0" "2" Cons(2,4,6) l1 write_obtain nth_safe_length
         nth_safe_prefix nth_safe_some option.inject snd_eqD)
 
   have 4:
-    "locations (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1
+    "locations (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1
     = locations m'' is0 l1"
   proof (rule Cons(1)[
       of
       _
-      "(snd (fold_map minit (take i ds) m))"
-      "fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
-      "snd (minit (ds!i) (snd (fold_map minit (take i ds) m)))",
+      "(snd (fold_map write (take i ds) m))"
+      "fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
+      "snd (write (ds!i) (snd (fold_map write (take i ds) m)))",
       OF _ _ l3 l4])
     from 1 2 show
-      "minit (adata.Array ds') (snd (fold_map minit (take i ds) m))
-      = (fst (minit (ds ! i) (snd (fold_map minit (take i ds) m))),
-        snd (minit (ds ! i) (snd (fold_map minit (take i ds) m))))"
+      "write (adata.Array ds') (snd (fold_map write (take i ds) m))
+      = (fst (write (ds ! i) (snd (fold_map write (take i ds) m))),
+        snd (write (ds ! i) (snd (fold_map write (take i ds) m))))"
       by simp
   next
     from 3 show
-      "snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
-      $ fst (minit (ds ! i) (snd (fold_map minit (take i ds) m)))
+      "snd (write (ds ! i) (snd (fold_map write (take i ds) m)))
+      $ fst (write (ds ! i) (snd (fold_map write (take i ds) m)))
       = Some (mdata.Array ns1)" by simp
   next
-    have "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m'" using Cons(3) 0
+    have "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m'" using Cons(3) 0
       by (metis Cons(2,4) nth_safe_length snd_conv)
     moreover have "prefix m' m''" using Cons by simp
-    ultimately show "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m''"
+    ultimately show "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m''"
       unfolding prefix_def by auto
   qed
 
@@ -5034,33 +5034,33 @@ next
     using l1 l2 l3 l4 Cons by (auto simp add:case_memory_def)
   also from 4 have
     "locations m'' is0 l1
-    = locations (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1" ..
+    = locations (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1" ..
   also have
     "Some (
       finsert
         l'
-        (the (locations (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1)))
-    = locations (snd (fold_map minit (take (Suc i) ds) m)) (i0 # is0) l'"
+        (the (locations (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1)))
+    = locations (snd (fold_map write (take (Suc i) ds) m)) (i0 # is0) l'"
   proof -
     have
       "prefix
-        (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m))))
-        (snd (fold_map minit (take (Suc i) ds) m))"
+        (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m))))
+        (snd (fold_map write (take (Suc i) ds) m))"
       by (metis "2" "3" Cons.prems(1,2,3) l3 fold_map_take_snd fst_conv mdata.inject(2)
-          minit_obtain nth_safe_length option.inject snd_conv)
+          write_obtain nth_safe_length option.inject snd_conv)
     then have
-      "locations (snd (fold_map minit (take (Suc i1) ds') (snd (fold_map minit (take i ds) m)))) is0 l1
-       = locations (snd (fold_map minit (take (Suc i) ds) m)) is0 l1"
+      "locations (snd (fold_map write (take (Suc i1) ds') (snd (fold_map write (take i ds) m)))) is0 l1
+       = locations (snd (fold_map write (take (Suc i) ds) m)) is0 l1"
       by (metis "4" l4 locations_prefix_locations)
     moreover have
-      "Some (finsert l' (the (locations (snd (fold_map minit (take (Suc i) ds) m)) is0 l1)))
-       = locations (snd (fold_map minit (take (Suc i) ds) m)) (i0 # is0) l'"
+      "Some (finsert l' (the (locations (snd (fold_map write (take (Suc i) ds) m)) is0 l1)))
+       = locations (snd (fold_map write (take (Suc i) ds) m)) (i0 # is0) l'"
     proof -
-      have "(snd (fold_map minit (take (Suc i) ds) m)) $ l' = Some (mdata.Array ns1)" using l1
-        by (metis "3" Cons(2,3,4) fold_map_take_snd fst_conv mdata.inject(2) minit_obtain
+      have "(snd (fold_map write (take (Suc i) ds) m)) $ l' = Some (mdata.Array ns1)" using l1
+        by (metis "3" Cons(2,3,4) fold_map_take_snd fst_conv mdata.inject(2) write_obtain
             nth_safe_length nth_safe_some option.inject snd_conv)
       then show ?thesis using l2 l3 l4 apply (auto simp add: case_memory_def)
-        apply (case_tac "locations (snd (fold_map minit (take (Suc i) ds) m)) is0 l1", auto)
+        apply (case_tac "locations (snd (fold_map write (take (Suc i) ds) m)) is0 l1", auto)
         by (metis "4" calculation option.distinct(1))
     qed
     ultimately show ?thesis by simp
@@ -5070,9 +5070,9 @@ qed
 
 section \<open>Memory Init and Lookup\<close>
 
-lemma marray_lookup_minit_less:
+lemma marray_lookup_write_less:
   assumes "is \<noteq> []"
-    and "minit cd m = (l, m')"
+    and "write cd m = (l, m')"
     and "marray_lookup m' is l = Some (lx, nsx, ix)"
     and "nsx $ ix = Some l'"
   shows "l' < l"
@@ -5081,7 +5081,7 @@ proof (induction "is" arbitrary: m l m' cd rule: list_nonempty_induct)
   case (single i0)
   then have "m' $ lx = Some (mdata.Array nsx)" and "to_nat i0 = Some ix" and "lx = l"
     using marray_lookup_obtain_single[OF single(2)] by auto
-  then show ?case using single.prems(1,3) minit_array_less by blast
+  then show ?case using single.prems(1,3) write_array_less by blast
 next
   case (cons i0 is0)
 
@@ -5097,30 +5097,30 @@ next
 
   from cons(3) l1 obtain "ds" where 2: "cd = Array ds" by (case_tac cd, auto simp add: length_append_def)
 
-  have "l1 < l" by (meson cons.prems(1) l1 l3 minit_array_less)
+  have "l1 < l" by (meson cons.prems(1) l1 l3 write_array_less)
   moreover have "l' < l1"
 
   proof (rule cons(2)[OF _ _ cons(5)])
     from cons have
-      0: "\<forall>n < length ns1. ns1!n < fst (minit (Array ds) m)
-       \<and> ns1!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m)))
-       \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m)))) (snd (minit (Array ds) m))"
-      using minit_obtain[of ds m]
+      0: "\<forall>n < length ns1. ns1!n < fst (write (Array ds) m)
+       \<and> ns1!n = fst (write (ds!n) (snd (fold_map write (take n ds) m)))
+       \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m)))) (snd (write (Array ds) m))"
+      using write_obtain[of ds m]
       by (smt (verit, ccfv_SIG) "2" l1 mdata.inject(2) option.inject split_pairs2)
     then show
-      "minit (ds!i1) (snd (fold_map minit (take i1 ds) m))
-      = (l1, (snd (fold_map minit (take (Suc i1) ds) m)))"
-      by (metis "2" l1 cons.prems(1) fold_map_take_snd l3 mdata.inject(2) minit_obtain
+      "write (ds!i1) (snd (fold_map write (take i1 ds) m))
+      = (l1, (snd (fold_map write (take (Suc i1) ds) m)))"
+      by (metis "2" l1 cons.prems(1) fold_map_take_snd l3 mdata.inject(2) write_obtain
           nth_safe_def nth_safe_length option.inject split_pairs2)
   next
-    from l4 show "marray_lookup (snd (fold_map minit (take (Suc i1) ds) m)) is0 l1 = Some (lx, nsx, ix)"
-      using marray_lookup_minit_take[OF cons(1) _ l1 l3 l4 ] cons(3) 2 by auto
+    from l4 show "marray_lookup (snd (fold_map write (take (Suc i1) ds) m)) is0 l1 = Some (lx, nsx, ix)"
+      using marray_lookup_write_take[OF cons(1) _ l1 l3 l4 ] cons(3) 2 by auto
   qed
   ultimately show ?case by simp
 qed
 
-lemma minit_marray_lookup_locations:
-  assumes "minit cd m = (l, m')"
+lemma write_marray_lookup_locations:
+  assumes "write cd m = (l, m')"
       and "marray_lookup m' xs l = Some (l1, xs1, i1)"
       and "xs1 $ i1 = Some l2"
       and "locations m' xs l = Some L"
@@ -5142,10 +5142,10 @@ next
     next
       case (Array ca)
       then obtain ns m''
-        where "fold_map minit ca m = (ns, m'')"
+        where "fold_map write ca m = (ns, m'')"
           and "l = length m''"
           and "m' = m'' @ [mdata.Array ns]"
-        using Cons(2,3,4) Nil  apply (case_tac "fold_map minit ca m")
+        using Cons(2,3,4) Nil  apply (case_tac "fold_map write ca m")
         by (auto simp add: length_append_def case_memory_def)
       then have *: "m'$l = Some (mdata.Array ns)" using Cons by simp
       moreover from * obtain i''
@@ -5156,7 +5156,7 @@ next
       then have **: "ns$i'' =Some l2" using Cons by simp
       moreover have "locations m' (i # xs') l =Some {|l|}"
         using Cons(5) Nil * ** *** by (auto simp add: length_append_def case_memory_def)
-      ultimately show ?thesis using Cons.prems(4) minit_array_less Cons(2) by fastforce
+      ultimately show ?thesis using Cons.prems(4) write_array_less Cons(2) by fastforce
     qed
   next
     case c2: (Cons i' is')
@@ -5168,10 +5168,10 @@ next
     next
       case (Array ca)
       then obtain ns m''
-        where 0: "fold_map minit ca m = (ns, m'')"
+        where 0: "fold_map write ca m = (ns, m'')"
           and "l = length m''"
           and "m' = m'' @ [mdata.Array ns]"
-        using Cons(2,3,4) Nil apply (case_tac "fold_map minit ca m")
+        using Cons(2,3,4) Nil apply (case_tac "fold_map write ca m")
         by (auto simp add: length_append_def case_memory_def)
 
       then obtain i'' l'
@@ -5187,58 +5187,58 @@ next
         and 6: "L = (finsert l L')"
         using locations_obtain[OF Cons(5)] c2 by force
 
-      have "i'' < length (fst (fold_map minit ca m))"
-        by (simp add: "3" \<open>fold_map minit ca m = (ns, m'')\<close> nth_safe_length)
+      have "i'' < length (fst (fold_map write ca m))"
+        by (simp add: "3" \<open>fold_map write ca m = (ns, m'')\<close> nth_safe_length)
       then have
-        7: "fst (fold_map minit ca m) ! i''
-        = fst (minit (ca ! i'') (snd (fold_map minit (take i'' ca) m)))"
+        7: "fst (fold_map write ca m) ! i''
+        = fst (write (ca ! i'') (snd (fold_map write (take i'' ca) m)))"
         using fold_map_take_fst by metis
 
       have "i'' < length ca"
-        by (metis \<open>i'' < length (fst (fold_map minit ca m))\<close> fold_map_length)
+        by (metis \<open>i'' < length (fst (fold_map write ca m))\<close> fold_map_length)
       then have
-        8: "snd (fold_map minit (take (Suc i'') ca) m)
-         = snd (minit (ca ! i'') (snd (fold_map minit (take i'' ca) m)))"
+        8: "snd (fold_map write (take (Suc i'') ca) m)
+         = snd (write (ca ! i'') (snd (fold_map write (take i'' ca) m)))"
         using fold_map_take_snd by metis
 
       obtain mx lx
-        where 12: "fold_map minit (take i'' ca) m = (lx, mx)"
-          and 13: "minit (ca!i'') mx
-              = (fst (fold_map minit ca m) ! i'', snd (fold_map minit (take (Suc i'') ca) m))"
+        where 12: "fold_map write (take i'' ca) m = (lx, mx)"
+          and 13: "write (ca!i'') mx
+              = (fst (fold_map write ca m) ! i'', snd (fold_map write (take (Suc i'') ca) m))"
         using 7 8 by fastforce
 
-      have "(fst (fold_map minit ca m) ! i'') = l'"
+      have "(fst (fold_map write ca m) ! i'') = l'"
         by (metis "3" 0 fst_conv nth_safe_length nth_safe_some option.inject)
       then have
-        "marray_lookup (snd (fold_map minit (take (Suc i'') ca) m)) xs' (fst (fold_map minit ca m) ! i'')
+        "marray_lookup (snd (fold_map write (take (Suc i'') ca) m)) xs' (fst (fold_map write ca m) ! i'')
         = marray_lookup m' xs' l'"
-        using c2 marray_lookup_minit_take 1 "2" 3 "4" Array Cons.prems(1,2) `i'' < length ca`
+        using c2 marray_lookup_write_take 1 "2" 3 "4" Array Cons.prems(1,2) `i'' < length ca`
         by blast
       then have
-        9: "marray_lookup (snd (fold_map minit (take (Suc i'') ca) m)) xs' (fst (fold_map minit ca m) ! i'')
+        9: "marray_lookup (snd (fold_map write (take (Suc i'') ca) m)) xs' (fst (fold_map write ca m) ! i'')
           = Some (l1, xs1, i1)" using 4 by simp
 
-      have "fst (fold_map minit ca m) ! i'' = l'"
-        by (metis "3" \<open>fold_map minit ca m = (ns, m'')\<close> fst_conv nth_safe_length nth_safe_some option.inject)
+      have "fst (fold_map write ca m) ! i'' = l'"
+        by (metis "3" \<open>fold_map write ca m = (ns, m'')\<close> fst_conv nth_safe_length nth_safe_some option.inject)
       then have
-        "locations (snd (fold_map minit (take (Suc i'') ca) m)) xs' (fst (fold_map minit ca m) ! i'')
+        "locations (snd (fold_map write (take (Suc i'') ca) m)) xs' (fst (fold_map write ca m) ! i'')
         = locations m' (i'#is') l'"
-        using c2 locations_lookup_minit_take "1" "3" Array Cons.prems(1) 5 by blast
+        using c2 locations_lookup_write_take "1" "3" Array Cons.prems(1) 5 by blast
       then have
-        10: "locations (snd (fold_map minit (take (Suc i'') ca) m)) xs' (fst (fold_map minit ca m) ! i'')
+        10: "locations (snd (fold_map write (take (Suc i'') ca) m)) xs' (fst (fold_map write ca m) ! i'')
           = Some L'" using 5 by simp
 
       have "l2 |\<notin>| L'" using Cons(1)[OF 13 9 Cons(4) 10] by simp
-      moreover from marray_lookup_minit_less have "l2 \<noteq> l"
+      moreover from marray_lookup_write_less have "l2 \<noteq> l"
         using Cons.prems(1,2) assms(3) by blast
       ultimately show ?thesis using 12 13 6 by blast
     qed
   qed
 qed
 
-lemma minit_lookup_some:
+lemma write_lookup_some:
   assumes "xs \<noteq> []"
-      and "minit cd m = (l, m')"
+      and "write cd m = (l, m')"
       and "alookup xs cd = Some x"
       and "prefix m' m''"
     shows "\<exists>lz xsz iz z. marray_lookup m'' xs l = Some (lz, xsz, iz) \<and> xsz $ iz = Some z"
@@ -5255,7 +5255,7 @@ proof (induction xs arbitrary: m l m' cd x m'' rule: list_nonempty_induct)
   then show ?case using single.prems(1,3)
     apply (auto simp add:case_memory_def)
     apply (cases "m'' $ l",auto)
-    apply (metis fst_conv minit_obtain nth_safe_prefix option.distinct(1) single.prems(1,3) snd_conv)
+    apply (metis fst_conv write_obtain nth_safe_prefix option.distinct(1) single.prems(1,3) snd_conv)
     apply (case_tac a,auto simp add:nth_safe_def length_append_def split:if_split_asm prod.split_asm)
     apply (metis length_append_singleton lessI mdata.distinct(1) nth_append_left nth_append_length prefix_def)
     by (metis fold_map_length fst_eqD length_append_singleton mdata.inject(2) not_less_eq nth_append_left nth_append_length prefix_def verit_comp_simplify1(1))
@@ -5274,34 +5274,34 @@ next
   then obtain ns
     where b1: "m' $ l = Some (mdata.Array ns)"
       and b2: "length ds = length ns"
-      and b3: "\<forall>n < length ns. ns!n < fst (minit (Array ds) m)
-          \<and> ns!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m)))
-          \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m)))) (snd (minit (Array ds) m))"
-    using minit_obtain[of ds m]
+      and b3: "\<forall>n < length ns. ns!n < fst (write (Array ds) m)
+          \<and> ns!n = fst (write (ds!n) (snd (fold_map write (take n ds) m)))
+          \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m)))) (snd (write (Array ds) m))"
+    using write_obtain[of ds m]
     using cons(4)
-    by (metis cons.prems(1) fstI minit_obtain snd_eqD)
+    by (metis cons.prems(1) fstI write_obtain snd_eqD)
   moreover from a3 have "i < length ds" unfolding nth_safe_def by (simp split:if_split_asm)
-  ultimately have *: "ns!i = fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
+  ultimately have *: "ns!i = fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
     by (simp add: \<open>length ds = length ns\<close>)
 
   have
-    "\<exists>lz xsz iz z. marray_lookup m'' is0 (fst (minit (ds!i) (snd (fold_map minit (take i ds) m))))
+    "\<exists>lz xsz iz z. marray_lookup m'' is0 (fst (write (ds!i) (snd (fold_map write (take i ds) m))))
     = Some (lz, xsz, iz) \<and> xsz $ iz = Some z"
   proof (rule cons(2)[OF _ a4])
     from * show
-      "minit cd' (snd (fold_map minit (take i ds) m)) =
-        (fst (minit (ds ! i) (snd (fold_map minit (take i ds) m))),
-        snd (minit (ds ! i) (snd (fold_map minit (take i ds) m))))"
+      "write cd' (snd (fold_map write (take i ds) m)) =
+        (fst (write (ds ! i) (snd (fold_map write (take i ds) m))),
+        snd (write (ds ! i) (snd (fold_map write (take i ds) m))))"
       using \<open>i < length ds\<close> a3 by fastforce
   next
-    have "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m'"
+    have "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m'"
       by (metis a1 b2 b3 \<open>i < length ds\<close> cons.prems(1) snd_conv)
-    then show "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m''"
+    then show "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m''"
       using cons(5) prefix_trans by blast
   qed
   then obtain lz xsz iz z
     where
-      "marray_lookup m'' is0 (fst (minit (ds!i) (snd (fold_map minit (take i ds) m))))
+      "marray_lookup m'' is0 (fst (write (ds!i) (snd (fold_map write (take i ds) m))))
       = Some (lz, xsz, iz)"
       and "xsz $ iz = Some z"
     by blast
@@ -5312,7 +5312,7 @@ next
 qed
 
 lemma mlookup_some:
-  assumes "minit cd m = (l, m')"
+  assumes "write cd m = (l, m')"
       and "alookup xs cd = Some x"
     shows "\<exists>y. mlookup m' xs l = Some y"
 proof (cases xs)
@@ -5323,13 +5323,13 @@ next
   moreover obtain  lz xsz iz z
     where "marray_lookup m' (a # list) l = Some (lz, xsz, iz)"
       and "xsz $ iz = Some z"
-    using minit_lookup_some[of "a # list", OF _ assms(1), of x m']
+    using write_lookup_some[of "a # list", OF _ assms(1), of x m']
     using assms(2) Cons by blast
   ultimately show ?thesis by simp
 qed
 
-lemma minit_mlookup_locations:
-  assumes "minit cd m = (l, m')"
+lemma write_mlookup_locations:
+  assumes "write cd m = (l, m')"
       and "mlookup m' xs l = Some l1"
       and "locations m' xs l = Some L"
     shows "l1 |\<notin>| L"
@@ -5344,12 +5344,12 @@ next
       and "xs1 $ i1 = Some l2"
       and "l1 = l2"
     using mlookup_obtain_nempty1[of m' a list l l1] using assms(2) by metis
-  then have "l2 |\<notin>| L" using minit_marray_lookup_locations[OF assms(1) _ _ assms(3)] by blast
+  then have "l2 |\<notin>| L" using write_marray_lookup_locations[OF assms(1) _ _ assms(3)] by blast
   then show ?thesis using `l1 = l2` by simp
 qed
 
-lemma minit_locations_some:
-  assumes "minit cd m = (l, m')"
+lemma write_locations_some:
+  assumes "write cd m = (l, m')"
       and "alookup xs cd = Some x"
       and "prefix m' m''"
     shows "\<exists>y. locations m'' xs l = Some y"
@@ -5371,31 +5371,31 @@ next
   then obtain ns
     where b1: "m' $ l = Some (mdata.Array ns)"
       and b2: "length ds = length ns"
-      and b3: "\<forall>n < length ns. ns!n < fst (minit (Array ds) m)
-          \<and> ns!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m)))
-          \<and> prefix (snd (minit (ds!n) (snd (fold_map minit (take n ds) m)))) (snd (minit (Array ds) m))"
-    using minit_obtain[of ds m]
+      and b3: "\<forall>n < length ns. ns!n < fst (write (Array ds) m)
+          \<and> ns!n = fst (write (ds!n) (snd (fold_map write (take n ds) m)))
+          \<and> prefix (snd (write (ds!n) (snd (fold_map write (take n ds) m)))) (snd (write (Array ds) m))"
+    using write_obtain[of ds m]
     using Cons
-    by (metis Cons(2) fstI minit_obtain snd_eqD)
+    by (metis Cons(2) fstI write_obtain snd_eqD)
   moreover from a3 have "i < length ds" unfolding nth_safe_def by (simp split:if_split_asm)
-  ultimately have *: "ns!i = fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))"
+  ultimately have *: "ns!i = fst (write (ds!i) (snd (fold_map write (take i ds) m)))"
     by (simp add: \<open>length ds = length ns\<close>)
 
-  have "\<exists>y. locations m'' is (fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))) = Some y"
+  have "\<exists>y. locations m'' is (fst (write (ds!i) (snd (fold_map write (take i ds) m)))) = Some y"
   proof (rule Cons(1)[OF _ a4])
     from * show
-      "minit cd' (snd (fold_map minit (take i ds) m)) =
-        (fst (minit (ds ! i) (snd (fold_map minit (take i ds) m))),
-         snd (minit (ds ! i) (snd (fold_map minit (take i ds) m))))"
+      "write cd' (snd (fold_map write (take i ds) m)) =
+        (fst (write (ds ! i) (snd (fold_map write (take i ds) m))),
+         snd (write (ds ! i) (snd (fold_map write (take i ds) m))))"
       using \<open>i < length ds\<close> a3 by fastforce
   next
-    have "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m'"
+    have "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m'"
       by (metis b2 b3 a1 \<open>i < length ds\<close> Cons.prems(1) snd_conv)
-    then show "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m)))) m''"
+    then show "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m)))) m''"
       using Cons prefix_trans by blast
   qed
   then obtain y
-    where "locations m'' is (fst (minit (ds!i) (snd (fold_map minit (take i ds) m)))) = Some y"
+    where "locations m'' is (fst (write (ds!i) (snd (fold_map write (take i ds) m)))) = Some y"
     by blast
   moreover from b1 have "m''$l = Some (mdata.Array ns)"
     by (meson Cons nth_safe_prefix)
@@ -5405,21 +5405,21 @@ qed
 
 section \<open>Memory Init and Memory Locations\<close>
 
-lemma minit_locs_safe_in:
-  assumes "minit (adata.Array ds) m0 = (l, m)"
+lemma write_locs_safe_in:
+  assumes "write (adata.Array ds) m0 = (l, m)"
       and "alocs_safe s m l = Some L"
       and "x |\<in>| L"
     shows "x = l \<or>
-            (\<exists>n y L'. n<length ds \<and> fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))
+            (\<exists>n y L'. n<length ds \<and> fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))
             = y \<and> alocs_safe s m y = Some L' \<and> x |\<in>| L')"
 proof -
-  from assms minit_obtain[of ds m0] obtain xs
+  from assms write_obtain[of ds m0] obtain xs
     where *: "m $ l = Some (mdata.Array xs)"
       and "length xs = length ds"
       and **: "\<forall>n<length xs.
-              xs ! n < fst (minit (adata.Array ds) m0) \<and>
-              xs ! n = fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))
-                \<and> prefix (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) m"
+              xs ! n < fst (write (adata.Array ds) m0) \<and>
+              xs ! n = fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))
+                \<and> prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
     by auto
   moreover from assms(2) * have
     "fold
@@ -5447,9 +5447,9 @@ proof -
   qed
 qed
 
-theorem minit_alocs_safe:
-  assumes "\<forall>l \<ge> length m0. l < length (snd (minit cd m0)) \<longrightarrow> \<not> l |\<in>| s"
-  shows "s_disj_fs (loc m0) (alocs_safe s (snd (minit cd m0)) (fst (minit cd m0)))"
+theorem write_alocs_safe:
+  assumes "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
+  shows "s_disj_fs (loc m0) (alocs_safe s (snd (write cd m0)) (fst (write cd m0)))"
   using assms
 proof (induction cd arbitrary: m0 s)
   case (Value x)
@@ -5457,34 +5457,34 @@ proof (induction cd arbitrary: m0 s)
     by (auto simp add: s_disj_fs_def pred_some_def length_append_def case_memory_def loc_def)
 next
   case (Array ds)
-  from minit_obtain obtain xs
-    where xs1: "snd (minit (Array ds) m0) $ fst (minit (Array ds) m0) = Some (mdata.Array xs)"
+  from write_obtain obtain xs
+    where xs1: "snd (write (Array ds) m0) $ fst (write (Array ds) m0) = Some (mdata.Array xs)"
       and xs2: "length xs = length ds"
-      and xs3: "\<forall>n < length xs. xs!n < fst (minit (Array ds) m0) \<and>
-                                xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))"
+      and xs3: "\<forall>n < length xs. xs!n < fst (write (Array ds) m0) \<and>
+                                xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
     by metis
-  moreover have "\<not> fst (minit (Array ds) m0) |\<in>| s" using Array(2)
-    by (metis less_Suc_eq_le minit_length_inc minit_length_suc nth_safe_length xs1)
+  moreover have "\<not> fst (write (Array ds) m0) |\<in>| s" using Array(2)
+    by (metis less_Suc_eq_le write_length_inc write_length_suc nth_safe_length xs1)
   ultimately have
     "alocs_safe s
-        (snd (minit (adata.Array ds) m0))
-        (fst (minit (adata.Array ds) m0))
+        (snd (write (adata.Array ds) m0))
+        (fst (write (adata.Array ds) m0))
      = fold (\<lambda>x y.
-        y \<bind> (\<lambda>y'. (alocs_safe (finsert (fst (minit (Array ds) m0)) s) (snd (minit (Array ds) m0)) x)
+        y \<bind> (\<lambda>y'. (alocs_safe (finsert (fst (write (Array ds) m0)) s) (snd (write (Array ds) m0)) x)
           \<bind> (\<lambda>l. Some (l |\<union>| y'))))
-       xs (Some {|fst (minit (Array ds) m0)|})" (is "_ = fold ?f xs (Some {|fst (minit (Array ds) m0)|})")
+       xs (Some {|fst (write (Array ds) m0)|})" (is "_ = fold ?f xs (Some {|fst (write (Array ds) m0)|})")
     by (simp add:case_memory_def) 
-  moreover have "s_disj_fs (loc m0) (fold ?f xs (Some {|fst (minit (Array ds) m0)|}))"
+  moreover have "s_disj_fs (loc m0) (fold ?f xs (Some {|fst (write (Array ds) m0)|}))"
   proof (rule take_all1[of xs])
-    show "\<forall>n\<le>length xs. s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (minit (Array ds) m0)|}))"
+    show "\<forall>n\<le>length xs. s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (write (Array ds) m0)|}))"
     proof (rule allI, rule impI)
       fix n
       assume "n \<le> length xs"
-      then show "s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (minit (Array ds) m0)|}))"
+      then show "s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (write (Array ds) m0)|}))"
       proof (induction n)
         case 0
         then show ?case
-          using minit_fold_map_sprefix[of ds m0, THEN sprefix_length]
+          using write_fold_map_sprefix[of ds m0, THEN sprefix_length]
           by (fastforce simp add:s_disj_fs_def pred_some_def length_append_def loc_def split:prod.split)
       next
         case (Suc n)
@@ -5493,10 +5493,10 @@ next
         then have "n < length ds" using xs2 by simp
 
         from Suc(2) have
-          "fold ?f (take (Suc n) xs) (Some {|fst (minit (Array ds) m0)|})
-          = ?f (xs!n) (fold ?f (take n xs) (Some {|fst (minit (Array ds) m0)|}))"
+          "fold ?f (take (Suc n) xs) (Some {|fst (write (Array ds) m0)|})
+          = ?f (xs!n) (fold ?f (take n xs) (Some {|fst (write (Array ds) m0)|}))"
           by (simp add: fold_take)
-        moreover have "s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (minit (Array ds) m0)|}))"
+        moreover have "s_disj_fs (loc m0) (fold ?f (take n xs) (Some {|fst (write (Array ds) m0)|}))"
           using Suc by simp
         moreover have "\<And>s. s_disj_fs (loc m0) s \<Longrightarrow> s_disj_fs (loc m0) (?f (xs!n) s)"
         proof -
@@ -5505,40 +5505,40 @@ next
             "s_disj_fs
               (loc m0)
               (alocs_safe
-                (finsert (fst (minit (adata.Array ds) m0)) s)
-                (snd (minit (adata.Array ds) m0))
+                (finsert (fst (write (adata.Array ds) m0)) s)
+                (snd (write (adata.Array ds) m0))
                 (xs ! n))"
           proof -
             have "(ds!n) \<in> set ds" using Suc(2) by (simp add: xs2)
-            moreover have "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-                           l < length (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-                           \<longrightarrow> l |\<notin>| (finsert (fst (minit (adata.Array ds) m0)) s)"
+            moreover have "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+                           l < length (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+                           \<longrightarrow> l |\<notin>| (finsert (fst (write (adata.Array ds) m0)) s)"
               using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
-            ultimately have "s_disj_fs (loc (snd (fold_map minit (take n ds) m0)))
-                 (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                   (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-                   (fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))))"
+            ultimately have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
+                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                   (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+                   (fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))"
               using Array by blast
-            then have "s_disj_fs (loc (snd (fold_map minit (take n ds) m0)))
-                 (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                   (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
+            then have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
+                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                   (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
                    (xs ! n))"
               using xs3 by (metis Suc.prems Suc_le_eq)
             moreover from \<open>n < length ds\<close> have "prefix
-                 (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-                 (snd (minit (adata.Array ds) m0))"
-              using minit_sprefix_take sprefix_prefix by blast
-            ultimately have "s_disj_fs (loc (snd (fold_map minit (take n ds) m0)))
-                 (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                   (snd (minit (adata.Array ds) m0))
+                 (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+                 (snd (write (adata.Array ds) m0))"
+              using write_sprefix_take sprefix_prefix by blast
+            ultimately have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
+                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                   (snd (write (adata.Array ds) m0))
                    (xs ! n))"
-              using a_data.locs_safe_prefix[of "(snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))"]
+              using a_data.locs_safe_prefix[of "(snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"]
               unfolding s_disj_fs_def pred_some_def by (auto simp del: a_data.locs_safe.simps) 
-            moreover have "prefix m0 (snd (fold_map minit (take n ds) m0))"
-              using fold_map_prefix[of "minit"]
-              by (metis minit_sprefix prod.collapse sndI sprefix_prefix)
+            moreover have "prefix m0 (snd (fold_map write (take n ds) m0))"
+              using fold_map_prefix[of "write"]
+              by (metis write_sprefix prod.collapse sndI sprefix_prefix)
             ultimately show ?thesis
-              using s_disj_fs_prefix[of m0 " (snd (fold_map minit (take n ds) m0))"] by blast
+              using s_disj_fs_prefix[of m0 " (snd (fold_map write (take n ds) m0))"] by blast
           qed
           ultimately show "s_disj_fs (loc m0) (?f (xs!n) x)"
             by (auto simp add:s_disj_fs_def pred_some_def)
@@ -5550,49 +5550,49 @@ next
   ultimately show ?case by simp
 qed
 
-corollary minit_alocs:
-  assumes "minit cd m0 = (l, m)"
+corollary write_alocs:
+  assumes "write cd m0 = (l, m)"
   shows "s_disj_fs (loc m0) (alocs m l)"
-  using minit_alocs_safe
+  using write_alocs_safe
   unfolding a_data.locs_def
   by (metis assms fempty_iff fst_conv snd_conv)
 
-lemma fold_map_minit_alocs:
-  assumes "minit (adata.Array ds) m0 = (l, m)"
+lemma fold_map_write_alocs:
+  assumes "write (adata.Array ds) m0 = (l, m)"
     and "j < length ds"
     and "i < j"
   shows "s_disj_fs
-          (loc (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))))
-          (alocs m (fst (minit (ds ! j) (snd (fold_map minit (take j ds) m0)))))"
+          (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))
+          (alocs m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
   using assms(3,1,2)
 proof -
-  from assms minit_obtain[of ds m0] obtain l' m'
-    where *: "minit (ds ! j) (snd (fold_map minit (take j ds) m0)) = (l', m')"
+  from assms write_obtain[of ds m0] obtain l' m'
+    where *: "write (ds ! j) (snd (fold_map write (take j ds) m0)) = (l', m')"
       and **:"prefix m' m"
     by (metis K.cases snd_conv)
   moreover from * have
-    ***: "s_disj_fs (loc (snd (fold_map minit (take j ds) m0))) (alocs m' l')"
-    using minit_alocs[where ?m0.0="snd (fold_map minit (take j ds) m0)"] by auto
+    ***: "s_disj_fs (loc (snd (fold_map write (take j ds) m0))) (alocs m' l')"
+    using write_alocs[where ?m0.0="snd (fold_map write (take j ds) m0)"] by auto
   moreover from *** obtain x where "alocs m' l' = Some x"
     unfolding s_disj_fs_def pred_some_def by auto
   then have "alocs m' l' = alocs m l'"
     using assms * ** by (metis a_data.locs_def a_data.locs_safe_prefix)
   moreover have
-    "loc (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0))))
-    \<subseteq> loc (snd (fold_map minit (take j ds) m0))" using assms
-    by (metis (no_types, lifting) Suc_leI fold_map_take_snd loc_minit_take order.strict_trans)
+    "loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0))))
+    \<subseteq> loc (snd (fold_map write (take j ds) m0))" using assms
+    by (metis (no_types, lifting) Suc_leI fold_map_take_snd loc_write_take order.strict_trans)
   ultimately show ?thesis unfolding s_disj_fs_def pred_some_def by auto
 qed
 
-theorem minit_loc_safe:
-  assumes "\<forall>l \<ge> length m0. l < length (snd (minit cd m0)) \<longrightarrow> \<not> l |\<in>| s"
+theorem write_loc_safe:
+  assumes "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
   shows
     "s_union_fs
-      (loc (snd (minit cd m0)))
+      (loc (snd (write cd m0)))
       (loc m0)
-      (alocs_safe s (snd (minit cd m0)) (fst (minit cd m0)))
-     \<and> (\<forall>x |\<in>| the (alocs_safe s (snd (minit cd m0)) (fst (minit cd m0))).
-          x < (length (snd (minit cd m0))))"
+      (alocs_safe s (snd (write cd m0)) (fst (write cd m0)))
+     \<and> (\<forall>x |\<in>| the (alocs_safe s (snd (write cd m0)) (fst (write cd m0))).
+          x < (length (snd (write cd m0))))"
   using assms
 proof (induction cd arbitrary: m0 s)
   case (Value x)
@@ -5603,31 +5603,31 @@ next
   define f where "f =
     (\<lambda>x y. y
       \<bind> (\<lambda>y'.
-        (alocs_safe (finsert (fst (minit (Array ds) m0)) s)
-          (snd (minit (Array ds) m0)) x)
+        (alocs_safe (finsert (fst (write (Array ds) m0)) s)
+          (snd (write (Array ds) m0)) x)
          \<bind> (\<lambda>l. Some (l |\<union>| y'))))"
-  from minit_obtain obtain xs
-    where xs1: "snd (minit (Array ds) m0) $ fst (minit (Array ds) m0) = Some (mdata.Array xs)"
+  from write_obtain obtain xs
+    where xs1: "snd (write (Array ds) m0) $ fst (write (Array ds) m0) = Some (mdata.Array xs)"
       and xs2: "length xs = length ds"
       and xs3: "\<forall>n < length xs.
-        xs!n < fst (minit (Array ds) m0) \<and>
-        xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))) \<and>
-         prefix (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) (snd (minit (adata.Array ds) m0))"
+        xs!n < fst (write (Array ds) m0) \<and>
+        xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0))) \<and>
+         prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) (snd (write (adata.Array ds) m0))"
     by metis
 
-  have xs0: "\<not> fst (minit (Array ds) m0) |\<in>| s" using Array(2)
-    by (metis less_Suc_eq_le minit_length_inc minit_length_suc nth_safe_length xs1)
+  have xs0: "\<not> fst (write (Array ds) m0) |\<in>| s" using Array(2)
+    by (metis less_Suc_eq_le write_length_inc write_length_suc nth_safe_length xs1)
   then have "alocs_safe s
-                    (snd (minit (adata.Array ds) m0))
-                    (fst (minit (adata.Array ds) m0))
-                 = fold f xs (Some {|fst (minit (Array ds) m0)|})"
+                    (snd (write (adata.Array ds) m0))
+                    (fst (write (adata.Array ds) m0))
+                 = fold f xs (Some {|fst (write (Array ds) m0)|})"
     using xs1 by (simp add:case_memory_def f_def) 
   moreover have
     "s_union_fs
-      (loc (snd (minit (adata.Array ds) m0)))
+      (loc (snd (write (adata.Array ds) m0)))
       (loc m0)
-      (fold f xs (Some {|fst (minit (Array ds) m0)|}))
-    \<and> (\<forall>x |\<in>| the (fold f xs (Some {||})). x < fst (minit (adata.Array ds) m0))
+      (fold f xs (Some {|fst (write (Array ds) m0)|}))
+    \<and> (\<forall>x |\<in>| the (fold f xs (Some {||})). x < fst (write (adata.Array ds) m0))
     \<and> (fold f xs (Some {||})) \<noteq> None"
     (is "?UNION ds xs")
   proof (rule take_all[where ?P = "\<lambda>xs' ys'. ?UNION ys' xs'"])
@@ -5646,139 +5646,139 @@ next
         have *: "prefix (take n ds) (take (Suc n) ds)"
           unfolding prefix_def Suc(1) by (metis \<open>n < length ds\<close> take_hd_drop)
 
-        let ?s="(finsert (fst (minit (adata.Array ds) m0)) s)"
-        let ?B="(snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))"
-        let ?C="(fst (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))"
-        let ?A="(butlast (snd (minit (adata.Array (take n ds)) m0)))"
+        let ?s="(finsert (fst (write (adata.Array ds) m0)) s)"
+        let ?B="(snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
+        let ?C="(fst (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
+        let ?A="(butlast (snd (write (adata.Array (take n ds)) m0)))"
 
         have a3: "(fold f (take n xs) (Some {||})) \<noteq> None" using Suc by simp
 
         have
-          "\<forall>l\<ge>length (butlast (snd (minit (adata.Array (take n ds)) m0))).
-             l < length (snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))
-          \<longrightarrow> l |\<notin>| finsert (fst (minit (adata.Array ds) m0)) s"
-          using length_minit_minit[OF \<open>n < length ds\<close> Array(2)] xs3
+          "\<forall>l\<ge>length (butlast (snd (write (adata.Array (take n ds)) m0))).
+             l < length (snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))
+          \<longrightarrow> l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s"
+          using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3
           by (meson \<open>n < length xs\<close>)
         then have a4: "alocs_safe ?s ?B ?C \<noteq> None"
           using Array(1)[of
               "ds!n"
-              "(butlast (snd (minit (adata.Array (take n ds)) m0)))"
-              "(finsert (fst (minit (adata.Array ds) m0)) s)"]
+              "(butlast (snd (write (adata.Array (take n ds)) m0)))"
+              "(finsert (fst (write (adata.Array ds) m0)) s)"]
           unfolding s_union_fs_def pred_some_def
           using \<open>n < length ds\<close> nth_mem by blast
         from a4 have a5: "alocs_safe ?s
-                      (snd (minit (Array ds) m0))
-                      ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))) \<noteq> None"
+                      (snd (write (Array ds) m0))
+                      ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))) \<noteq> None"
           using xs3 \<open>n \<le> length xs\<close>
             a_data.locs_safe_prefix[of
-              "(snd (minit (ds ! n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))"
-              "(snd (minit (Array ds) m0))" "(finsert (fst (minit (adata.Array ds) m0)) s)"]
-            butlast_minit[of "(take n ds)" m0]
-          apply (auto simp del:minit.simps a_data.locs_safe.simps)
+              "(snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
+              "(snd (write (Array ds) m0))" "(finsert (fst (write (adata.Array ds) m0)) s)"]
+            butlast_write[of "(take n ds)" m0]
+          apply (auto simp del:write.simps a_data.locs_safe.simps)
           by (metis \<open>n < length xs\<close>)
         have a6:
             "fset (the (fold f (take n xs) (Some {||})))
-            = loc (butlast (snd (minit (adata.Array (take n ds)) m0))) - loc m0"
+            = loc (butlast (snd (write (adata.Array (take n ds)) m0))) - loc m0"
         proof (rule s_disj_union_fs)
           show "s_disj_fs (loc m0) (fold f (take n xs) (Some {||}))"
           proof -
             have
               "s_disj_fs
                 (loc m0)
-                (alocs_safe s (snd (minit (adata.Array ds) m0)) (fst (minit (adata.Array ds) m0)))"
-              using minit_alocs_safe[OF Array(2)] by simp
-            then have "s_disj_fs (loc m0) (fold f xs (Some {|fst (minit (Array ds) m0)|}))"
+                (alocs_safe s (snd (write (adata.Array ds) m0)) (fst (write (adata.Array ds) m0)))"
+              using write_alocs_safe[OF Array(2)] by simp
+            then have "s_disj_fs (loc m0) (fold f xs (Some {|fst (write (Array ds) m0)|}))"
               using xs0 xs1 unfolding f_def by (auto simp add: case_memory_def)
-            moreover have "s_disj_fs (loc m0) (Some {|fst (minit (adata.Array ds) m0)|})"
+            moreover have "s_disj_fs (loc m0) (Some {|fst (write (adata.Array ds) m0)|})"
               unfolding s_disj_fs_def pred_some_def loc_def
-              using fold_map_mono minit_length_inc[of m0 "(adata.Array ds)"]
+              using fold_map_mono write_length_inc[of m0 "(adata.Array ds)"]
               by (auto split:prod.split simp add:length_append_def)
             ultimately have
               "s_disj_fs
                 (loc m0)
-                (fold f (take n xs) (Some {|fst (minit (Array ds) m0)|}))"
+                (fold f (take n xs) (Some {|fst (write (Array ds) m0)|}))"
               unfolding f_def
               using s_disj_fs_loc_fold[of
                   m0
-                  "alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s) (snd (minit (adata.Array ds) m0))"
-                  xs "Some {|fst (minit (adata.Array ds) m0)|}" n] by simp
-            moreover from a3 have "the (fold f (take n xs) (Some {|fst (minit (Array ds) m0)|})) =
-            the (fold f (take n xs) (Some {||})) |\<union>| {|fst (minit (Array ds) m0)|}"
+                  "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
+                  xs "Some {|fst (write (adata.Array ds) m0)|}" n] by simp
+            moreover from a3 have "the (fold f (take n xs) (Some {|fst (write (Array ds) m0)|})) =
+            the (fold f (take n xs) (Some {||})) |\<union>| {|fst (write (Array ds) m0)|}"
               unfolding f_def using fold_none_the_fold[of
-                  "alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s) (snd (minit (adata.Array ds) m0))"
-                  "(take n xs)" "{||}" "{|fst (minit (adata.Array ds) m0)|}"] by auto
+                  "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
+                  "(take n xs)" "{||}" "{|fst (write (adata.Array ds) m0)|}"] by auto
             ultimately have "s_disj_fs (loc m0) (fold f (take n xs) (Some {||}))"
               unfolding s_disj_fs_def pred_some_def
               using a3 by auto
             then show ?thesis unfolding f_def
               using s_disj_fs_loc_fold[of
               m0
-              "alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s) (snd (minit (adata.Array ds) m0))"
+              "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
               xs "Some {||}" n] by simp
           qed
         next
           from Suc(1)[OF \<open>n \<le> length xs\<close>] have
             "s_union_fs
-              (loc (snd (minit (adata.Array (take n ds)) m0)))
+              (loc (snd (write (adata.Array (take n ds)) m0)))
               (loc m0)
-              (fold f (take n xs) (Some {|fst (minit (adata.Array (take n ds)) m0)|}))"
+              (fold f (take n xs) (Some {|fst (write (adata.Array (take n ds)) m0)|}))"
             by simp
           then show
             "s_union_fs
-              (loc (butlast (snd (minit (adata.Array (take n ds)) m0))))
+              (loc (butlast (snd (write (adata.Array (take n ds)) m0))))
               (loc m0)
               (fold f (take n xs) (Some {||}))"
           proof (rule s_union_fs_s_union_fs_diff[OF _ _ _ a3])
-            show "loc (butlast (snd (minit (adata.Array (take n ds)) m0))) =
-              loc (snd (minit (adata.Array (take n ds)) m0)) - {fst (minit (adata.Array (take n ds)) m0)}"
-              unfolding loc_def using minit_length_suc[of "adata.Array (take n ds)" m0] by fastforce
+            show "loc (butlast (snd (write (adata.Array (take n ds)) m0))) =
+              loc (snd (write (adata.Array (take n ds)) m0)) - {fst (write (adata.Array (take n ds)) m0)}"
+              unfolding loc_def using write_length_suc[of "adata.Array (take n ds)" m0] by fastforce
           next
-            have "fst (minit (adata.Array (take n ds)) m0) |\<notin>|
+            have "fst (write (adata.Array (take n ds)) m0) |\<notin>|
             the (fold f (take n xs) (Some {||}))" using Suc(1)[OF \<open>n \<le> length xs\<close>]
               unfolding loc_def by blast
             then show "the (fold f (take n xs) (Some {||})) =
-            the (fold f (take n xs) (Some {|fst (minit (adata.Array (take n ds)) m0)|})) |-|
-            {|fst (minit (adata.Array (take n ds)) m0)|}"
-              using fold_insert_same[of "fst (minit (adata.Array (take n ds)) m0)" _ n xs "{||}"]
+            the (fold f (take n xs) (Some {|fst (write (adata.Array (take n ds)) m0)|})) |-|
+            {|fst (write (adata.Array (take n ds)) m0)|}"
+              using fold_insert_same[of "fst (write (adata.Array (take n ds)) m0)" _ n xs "{||}"]
               unfolding f_def by blast
           next
-            show "fst (minit (adata.Array (take n ds)) m0) \<notin> loc m0"
-              by (metis loc_def mem_Collect_eq minit_length_inc minit_length_suc not_less_eq)
+            show "fst (write (adata.Array (take n ds)) m0) \<notin> loc m0"
+              by (metis loc_def mem_Collect_eq write_length_inc write_length_suc not_less_eq)
           qed
         qed  
 
         have a7:"
           the ((
             alocs_safe ?s
-              (snd (minit (Array ds) m0))
-              ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))))))
+              (snd (write (Array ds) m0))
+              ((fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))))
            |\<inter>| the (fold f (take n xs) (Some {||})) = {||}"
         proof -
           have
             "alocs_safe ?s
-              (snd (minit (Array ds) m0))
-              ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))))
-          = alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s) ?B ?C"
+              (snd (write (Array ds) m0))
+              ((fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))
+          = alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C"
           proof -
-            have "prefix ?B (snd (minit (Array ds) m0))"
-              using xs3 by (metis \<open>n < length xs\<close> butlast_minit)
+            have "prefix ?B (snd (write (Array ds) m0))"
+              using xs3 by (metis \<open>n < length xs\<close> butlast_write)
             then have
               "alocs_safe ?s ?B ?C
-              = alocs_safe ?s (snd (minit (adata.Array ds) m0)) ?C"
-              using a_data.locs_safe_prefix[of ?B "(snd (minit (Array ds) m0))" ?s] a4
+              = alocs_safe ?s (snd (write (adata.Array ds) m0)) ?C"
+              using a_data.locs_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s] a4
               by fastforce
             moreover have
-              "butlast (snd (minit (adata.Array (take n ds)) m0))
-              = snd (fold_map minit (take n ds) m0)"
-              using butlast_minit by auto
+              "butlast (snd (write (adata.Array (take n ds)) m0))
+              = snd (fold_map write (take n ds) m0)"
+              using butlast_write by auto
             ultimately show ?thesis by auto
           qed
           moreover have "loc ?A \<inter> fset (the (alocs_safe ?s ?B ?C)) = {}"
           proof -
             have "s_disj_fs (loc ?A) (alocs_safe ?s ?B ?C)"
-            proof (rule minit_alocs_safe)
+            proof (rule write_alocs_safe)
               show "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
-                using length_minit_minit[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close> by blast
+                using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close> by blast
             qed
             then show ?thesis unfolding s_disj_fs_def pred_some_def by auto
           qed
@@ -5787,50 +5787,50 @@ next
 
         show ?case
         proof
-          show "s_union_fs (loc (snd (minit (adata.Array (take (Suc n) ds)) m0))) (loc m0)
-           (fold f (take (Suc n) xs) (Some {|fst (minit (adata.Array (take (Suc n) ds)) m0)|}))"
+          show "s_union_fs (loc (snd (write (adata.Array (take (Suc n) ds)) m0))) (loc m0)
+           (fold f (take (Suc n) xs) (Some {|fst (write (adata.Array (take (Suc n) ds)) m0)|}))"
           proof (rule s_union_fs_s_union_fs_union[OF conjunct1[OF Suc(1)[OF \<open>n \<le> length xs\<close>]]])
-            show "(loc (snd (minit (adata.Array (take (Suc n) ds)) m0))) =
-            loc (snd (minit (adata.Array (take n ds)) m0))
-              - {length (snd (minit (adata.Array (take n ds)) m0)) - 1}
-              \<union> (insert (length (snd (minit (ds!n) (butlast (snd (minit (adata.Array (take n ds)) m0))))))
-                  (loc (snd (minit (ds!n) (butlast (snd (minit (adata.Array (take n ds)) m0)))))
-                  - (loc (butlast (snd (minit (adata.Array (take n ds)) m0))))))"
+            show "(loc (snd (write (adata.Array (take (Suc n) ds)) m0))) =
+            loc (snd (write (adata.Array (take n ds)) m0))
+              - {length (snd (write (adata.Array (take n ds)) m0)) - 1}
+              \<union> (insert (length (snd (write (ds!n) (butlast (snd (write (adata.Array (take n ds)) m0))))))
+                  (loc (snd (write (ds!n) (butlast (snd (write (adata.Array (take n ds)) m0)))))
+                  - (loc (butlast (snd (write (adata.Array (take n ds)) m0))))))"
               apply (auto simp add:loc_def length_append_def split:prod.split)
               using fold_map_take_snd[OF \<open>n < length ds\<close>] apply (metis less_Suc_eq snd_conv)
               using fold_map_take_snd[OF \<open>n < length ds\<close>] apply (metis less_Suc_eq snd_conv)
               using fold_map_take_snd[OF \<open>n < length ds\<close>] apply (metis lessI snd_conv)
-              using minit_fold_map_mono[OF *, of m0] unfolding prefix_def apply auto[1]
+              using write_fold_map_mono[OF *, of m0] unfolding prefix_def apply auto[1]
               using fold_map_take_snd[OF \<open>n < length ds\<close>] apply (metis less_SucI snd_conv)
               done
           next
-            show "{length (snd (minit (adata.Array (take n ds)) m0)) - 1} \<inter> loc m0 = {}"
-              using minit_length_inc[of m0 "(adata.Array (take n ds))"] unfolding loc_def by simp
+            show "{length (snd (write (adata.Array (take n ds)) m0)) - 1} \<inter> loc m0 = {}"
+              using write_length_inc[of m0 "(adata.Array (take n ds))"] unfolding loc_def by simp
           next
-            show "{length (snd (minit (adata.Array (take n ds)) m0)) - 1}
-                  = fset {|(fst (minit (Array (take n ds)) m0))|}"
-              using minit_length_suc[of "adata.Array (take n ds)"] by simp
+            show "{length (snd (write (adata.Array (take n ds)) m0)) - 1}
+                  = fset {|(fst (write (Array (take n ds)) m0))|}"
+              using write_length_suc[of "adata.Array (take n ds)"] by simp
           next
             show "insert (length ?B) (loc ?B - loc ?A)
                 = fset (the (Some (finsert
-                    (fst (minit (adata.Array (take (Suc n) ds)) m0))
+                    (fst (write (adata.Array (take (Suc n) ds)) m0))
                     (the (f (xs!n) (fold f (take n xs) (Some {||})))
                       |-| (the (fold f (take n xs) (Some {||})))))))"
             proof -
-              have "length ?B = (fst (minit (adata.Array (take (Suc n) ds)) m0))"
-                using minit_Array_take_Suc
+              have "length ?B = (fst (write (adata.Array (take (Suc n) ds)) m0))"
+                using write_Array_take_Suc
                 by (metis \<open>n < length ds\<close>)
               moreover have "(loc ?B - loc ?A)
                     = fset (the (f (xs!n) (fold f (take n xs) (Some {||})))
                       |-| (the (fold f (take n xs) (Some {||}))))"
               proof -
                 have "(loc ?B - loc ?A)
-                 = fset (the (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s) ?B ?C))"
+                 = fset (the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C))"
                 proof (rule s_union_fs_diff)
                   have "ds ! n \<in> set ds"
                     by (simp add: \<open>n < length ds\<close>)
                   moreover have "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
-                    using length_minit_minit[OF \<open>n < length ds\<close> Array(2)] \<open>n < length xs\<close> xs3
+                    using length_write_write[OF \<open>n < length ds\<close> Array(2)] \<open>n < length xs\<close> xs3
                     by blast
                   ultimately show "s_union_fs (loc ?B) (loc ?A) (alocs_safe ?s ?B ?C)"
                     using Array(1) by blast
@@ -5838,9 +5838,9 @@ next
                   show "loc ?A \<inter> fset (the (alocs_safe ?s ?B ?C)) = {}"
                   proof -
                     have "s_disj_fs (loc ?A) (alocs_safe ?s ?B ?C)"
-                    proof (rule minit_alocs_safe)
+                    proof (rule write_alocs_safe)
                       show "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
-                        using length_minit_minit[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close>
+                        using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close>
                         by blast
                   qed
                   then show ?thesis unfolding s_disj_fs_def pred_some_def by auto
@@ -5852,52 +5852,52 @@ next
                     |-| (the (fold f (take n xs) (Some {||}))))"
                 proof -
                   from a3 have
-                    "(\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (minit (Array ds) m0)) x)
+                    "(\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (write (Array ds) m0)) x)
                                    \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs!n) (fold f (take n xs) (Some {||}))
                     = (alocs_safe ?s
-                        (snd (minit (Array ds) m0))
-                        ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))))
+                        (snd (write (Array ds) m0))
+                        ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       \<bind> (\<lambda>l. Some (l |\<union>| the (fold f (take n xs) (Some {||}))))"
                     using xs3 \<open>n < length xs\<close> by fastforce
                   moreover from a5 have
                     "(alocs_safe ?s
-                      (snd (minit (Array ds) m0))
-                      ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))))
+                      (snd (write (Array ds) m0))
+                      ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                      \<bind> (\<lambda>l. Some (l |\<union>| the (fold f (take n xs) (Some {||}))))
                     = Some (the (
                         alocs_safe ?s
-                          (snd (minit (Array ds) m0))
-                          ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))))
+                          (snd (write (Array ds) m0))
+                          ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       |\<union>| the (fold f (take n xs) (Some {||})))"
                     by fastforce
                   moreover from a7 have
                     "the
                       (alocs_safe ?s
-                        (snd (minit (Array ds) m0))
-                        ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))))
+                        (snd (write (Array ds) m0))
+                        ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       |\<union>| the (fold f (take n xs) (Some {||}))
                       |-| (the (fold f (take n xs) (Some {||})))
                     = the
                         (alocs_safe ?s
-                          (snd (minit (Array ds) m0))
-                          ((fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))))"
+                          (snd (write (Array ds) m0))
+                          ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))"
                     by blast
                   ultimately have
                     "the (
-                      (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (minit (Array ds) m0)) x)
+                      (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (write (Array ds) m0)) x)
                         \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs!n) (fold f (take n xs) (Some {||})))
                       |-| (the (fold f (take n xs) (Some {||})))
                   = the (
                       alocs_safe ?s
-                        (snd (minit (Array ds) m0))
-                        (fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))))"
+                        (snd (write (Array ds) m0))
+                        (fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))"
                     by simp
-                  moreover have "prefix ?B (snd (minit (Array ds) m0))"
-                    using xs3 by (metis \<open>n < length xs\<close> butlast_minit)
-                  moreover have "?C = (fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))"
-                    by (metis butlast_minit)
+                  moreover have "prefix ?B (snd (write (Array ds) m0))"
+                    using xs3 by (metis \<open>n < length xs\<close> butlast_write)
+                  moreover have "?C = (fst (write (ds!n) (snd (fold_map write (take n ds) m0))))"
+                    by (metis butlast_write)
                   ultimately show ?thesis
-                    using a_data.locs_safe_prefix[of ?B "(snd (minit (Array ds) m0))" ?s]
+                    using a_data.locs_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s]
                     f_def a4 by force
                 qed
                 ultimately show ?thesis by blast
@@ -5905,11 +5905,11 @@ next
               ultimately show ?thesis by simp
             qed
           next
-            show "fold f (take (Suc n) xs) (Some {|fst (minit (adata.Array (take (Suc n) ds)) m0)|}) =
-                  Some (the (fold f (take n xs) (Some {|fst (minit (adata.Array (take n ds)) m0)|}))
-                  |-| {|(fst (minit (adata.Array (take n ds)) m0))|}
+            show "fold f (take (Suc n) xs) (Some {|fst (write (adata.Array (take (Suc n) ds)) m0)|}) =
+                  Some (the (fold f (take n xs) (Some {|fst (write (adata.Array (take n ds)) m0)|}))
+                  |-| {|(fst (write (adata.Array (take n ds)) m0))|}
                       |\<union>| the (Some (finsert
-                        (fst (minit (adata.Array (take (Suc n) ds)) m0))
+                        (fst (write (adata.Array (take (Suc n) ds)) m0))
                         (the (f (xs ! n) (fold f (take n xs) (Some {||})))
                           |-| the (fold f (take n xs) (Some {||}))))))"
             (is "?f (Suc n) = Some (the (?f n) |-| {|?s n|} |\<union>| the (Some (finsert (?s (Suc n)) ?r)))")
@@ -5923,17 +5923,17 @@ next
               also have "(fold f (take n xs) (Some {||})) = Some ((the (?f n)) |-| {|?s n|})"
                 unfolding f_def
               proof (rule fold_some_diff)
-                have "fst (minit (adata.Array (take n ds)) m0)
-                  \<notin> loc (butlast (snd (minit (adata.Array (take n ds)) m0)))"
-                  unfolding loc_def using minit_length_suc[of "(adata.Array (take n ds))"] by simp
+                have "fst (write (adata.Array (take n ds)) m0)
+                  \<notin> loc (butlast (snd (write (adata.Array (take n ds)) m0)))"
+                  unfolding loc_def using write_length_suc[of "(adata.Array (take n ds))"] by simp
                 then show
-                  "fst (minit (adata.Array (take n ds)) m0) |\<notin>|
+                  "fst (write (adata.Array (take n ds)) m0) |\<notin>|
                   the (fold
                    (\<lambda>x y. y \<bind>
                      (\<lambda>y'.
                          alocs_safe
-                          (finsert (fst (minit (adata.Array ds) m0)) s)
-                          (snd (minit (adata.Array ds) m0))
+                          (finsert (fst (write (adata.Array ds) m0)) s)
+                          (snd (write (adata.Array ds) m0))
                           x
                       \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                    (take n xs) (Some {||}))"
@@ -5941,20 +5941,20 @@ next
               next
                 from a3 show
                   "fold (\<lambda>x y. y \<bind>
-                    (\<lambda>y'. alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                      (snd (minit (adata.Array ds) m0)) x \<bind> (\<lambda>l. Some (l |\<union>| y')))) (take n xs) (Some {||})
+                    (\<lambda>y'. alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                      (snd (write (adata.Array ds) m0)) x \<bind> (\<lambda>l. Some (l |\<union>| y')))) (take n xs) (Some {||})
                    \<noteq> None"
                   unfolding f_def by auto
               qed
               finally have
                 "?f (Suc n) = f (xs ! n) (Some (the (?f n) |-| {|?s n|})) \<bind> Some \<circ> finsert (?s (Suc n))" .
               moreover from a7 have
-                "the (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                  (snd (minit (adata.Array ds) m0)) (xs ! n))
+                "the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                  (snd (write (adata.Array ds) m0)) (xs ! n))
                 |\<inter>| the (fold f (take n xs) (Some {||})) = {||}" using xs3 f_def by (metis \<open>n < length xs\<close>)
               moreover from a5 have
-                "alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                  (snd (minit (adata.Array ds) m0)) (xs ! n) \<noteq> None" using xs3
+                "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                  (snd (write (adata.Array ds) m0)) (xs ! n) \<noteq> None" using xs3
                 by (simp add: \<open>n < length xs\<close>)
               ultimately show ?thesis using a3 unfolding f_def by auto
             qed
@@ -5962,19 +5962,19 @@ next
         next
           show
             "(\<forall>x|\<in>|the (fold f (take (Suc n) xs) (Some {||})).
-               x < fst (minit (adata.Array (take (Suc n) ds)) m0))
+               x < fst (write (adata.Array (take (Suc n) ds)) m0))
              \<and> fold f (take (Suc n) xs) (Some {||}) \<noteq> None"
           proof
             show
               "\<forall>x|\<in>|the (fold f (take (Suc n) xs) (Some {||})).
-                x < fst (minit (adata.Array (take (Suc n) ds)) m0)"
+                x < fst (write (adata.Array (take (Suc n) ds)) m0)"
             proof (rule ballI)
               fix x assume "x |\<in>| the (fold f (take (Suc n) xs) (Some {||}))"
               then have
                 "x |\<in>| the ((\<lambda>x y. y
                   \<bind> (\<lambda>y'.
-                    (alocs_safe (finsert (fst (minit (Array ds) m0)) s)
-                      (snd (minit (Array ds) m0)) x)
+                    (alocs_safe (finsert (fst (write (Array ds) m0)) s)
+                      (snd (write (Array ds) m0)) x)
                      \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs ! n) (fold f (take n xs) (Some {||})))"
                 using fold_take[OF \<open>n < length xs\<close>]
                 unfolding f_def by (rule back_subst)
@@ -5983,51 +5983,51 @@ next
               moreover obtain z
                 where z_def:
                   "alocs_safe
-                    (finsert (fst (minit (adata.Array ds) m0)) s)
-                    (snd (minit (adata.Array ds) m0))
+                    (finsert (fst (write (adata.Array ds) m0)) s)
+                    (snd (write (adata.Array ds) m0))
                     (xs ! n)
                   = Some z"
                 using a5 xs3 using \<open>n < length xs\<close> by auto
               ultimately consider "x |\<in>| y" | "x |\<in>| z"
-                by (auto simp del:a_data.locs_safe.simps minit.simps)
-              then show "x < fst (minit (adata.Array (take (Suc n) ds)) m0)"
+                by (auto simp del:a_data.locs_safe.simps write.simps)
+              then show "x < fst (write (adata.Array (take (Suc n) ds)) m0)"
               proof cases
                 case 1
                 moreover have
-                  "fst (minit (adata.Array (take n ds)) m0)
-                    < fst (minit (adata.Array (take (Suc n) ds)) m0)"
+                  "fst (write (adata.Array (take n ds)) m0)
+                    < fst (write (adata.Array (take (Suc n) ds)) m0)"
                   apply (auto split:prod.split simp add:length_append_def)
-                  by (metis \<open>n < length ds\<close> fold_map_take_snd minit_length_inc snd_eqD)
+                  by (metis \<open>n < length ds\<close> fold_map_take_snd write_length_inc snd_eqD)
                 ultimately show ?thesis using Suc(1)[OF \<open>n \<le> length xs\<close>] y_def by auto
               next
                 case 2
                 have
-                  "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-                    l < length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-                   \<longrightarrow> l |\<notin>| finsert (fst (minit (adata.Array ds) m0)) s"
+                  "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+                    l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+                   \<longrightarrow> l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s"
                   using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> _ Array(2)] xs3 by blast
-                then have "(\<forall>x|\<in>|the (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                   (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-                   (fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))).
-                   x < (length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))))"
+                then have "(\<forall>x|\<in>|the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                   (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+                   (fst (write (ds ! n) (snd (fold_map write (take n ds) m0))))).
+                   x < (length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))))"
                   using
                     Array(1)[of
                       "(ds ! n)"
-                      "(snd (fold_map minit (take n ds) m0))"
-                      "(finsert (fst (minit (adata.Array ds) m0)) s)"]
+                      "(snd (fold_map write (take n ds) m0))"
+                      "(finsert (fst (write (adata.Array ds) m0)) s)"]
                     \<open>n < length ds\<close> nth_mem by blast
                 moreover from a4 have
-                  "x|\<in>|the (alocs_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-                  (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-                  (fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))))"
-                  using 2 xs3 z_def \<open>n < length xs\<close> butlast_minit a_data.locs_safe_prefix
+                  "x|\<in>|the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                  (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+                  (fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))))"
+                  using 2 xs3 z_def \<open>n < length xs\<close> butlast_write a_data.locs_safe_prefix
                   by (smt (verit, del_insts) option.exhaust_sel option.sel)
                 ultimately have
-                  "x < (length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))))"
+                  "x < (length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))))"
                   by simp
                 then show ?thesis 
                   apply (auto split:prod.split simp add:length_append_def)
-                  using fold_map_take_snd[OF \<open>n < length ds\<close>, of minit m0] by simp
+                  using fold_map_take_snd[OF \<open>n < length ds\<close>, of "write" m0] by simp
               qed
             qed
           next
@@ -6045,114 +6045,114 @@ next
     qed
   qed  (rule xs2)
   moreover have
-    "(\<forall>x|\<in>|the (fold f xs (Some {|fst (minit (adata.Array ds) m0)|})).
-       x < (length (snd (minit (adata.Array ds) m0))))"
+    "(\<forall>x|\<in>|the (fold f xs (Some {|fst (write (adata.Array ds) m0)|})).
+       x < (length (snd (write (adata.Array ds) m0))))"
   proof
     fix x
-    assume *: "x |\<in>| the (fold f xs (Some {|fst (minit (adata.Array ds) m0)|}))"
-    have "fold f xs (Some ({||} |\<union>| {|fst (minit (adata.Array ds) m0)|})) \<noteq> None"
+    assume *: "x |\<in>| the (fold f xs (Some {|fst (write (adata.Array ds) m0)|}))"
+    have "fold f xs (Some ({||} |\<union>| {|fst (write (adata.Array ds) m0)|})) \<noteq> None"
       using calculation(2) unfolding s_union_fs_def pred_some_def by auto
     with *
     consider "x |\<in>| the (fold f xs (Some {||}))"
-           | "x |\<in>| {| fst (minit (adata.Array ds) m0) |}"
-      using fold_none_the_fold[where ?X="{||}" and ?Y="{|fst (minit (adata.Array ds) m0)|}"]
+           | "x |\<in>| {| fst (write (adata.Array ds) m0) |}"
+      using fold_none_the_fold[where ?X="{||}" and ?Y="{|fst (write (adata.Array ds) m0)|}"]
       unfolding f_def by fastforce
-    then show "x < (length (snd (minit (adata.Array ds) m0)))"
+    then show "x < (length (snd (write (adata.Array ds) m0)))"
     proof cases
       case 1
-      then show ?thesis using calculation(2) minit_length_suc[of "(adata.Array ds)" m0] by auto
+      then show ?thesis using calculation(2) write_length_suc[of "(adata.Array ds)" m0] by auto
     next
       case 2
       then show ?thesis
-        by (metis fsingletonE lessI minit_length_suc)
+        by (metis fsingletonE lessI write_length_suc)
     qed
   qed
   ultimately show ?case by simp
 qed
 
-corollary minit_loc:
-  assumes "minit cd m0 = (l, m)"
+corollary write_loc:
+  assumes "write cd m0 = (l, m)"
   shows "s_union_fs (loc m) (loc m0) (alocs m l)"
-  using assms minit_loc_safe unfolding a_data.locs_safe_prefix
+  using assms write_loc_safe unfolding a_data.locs_safe_prefix
   by (metis a_data.locs_def fempty_iff fst_conv snd_conv)
 
-lemma fold_map_minit_loc:
-  assumes "minit (adata.Array ds) m0 = (l, m)"
+lemma fold_map_write_loc:
+  assumes "write (adata.Array ds) m0 = (l, m)"
      and "i < length ds"
-     and "i' = fst (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))"
+     and "i' = fst (write (ds ! i) (snd (fold_map write (take i ds) m0)))"
    shows "fs_subs_s
             (alocs m i')
-            (loc (snd (minit (ds ! i ) (snd (fold_map minit (take i ds) m0)))))"
+            (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))"
   using assms
 proof -
   from assms(3)
   have
     "s_union_fs
-      (loc (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))))
-      (loc (snd (fold_map minit (take i ds) m0)))
-      (alocs (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))) i')"
-    using minit_loc[of
+      (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))
+      (loc (snd (fold_map write (take i ds) m0)))
+      (alocs (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i')"
+    using write_loc[of
           "ds ! i"
-          "snd (fold_map minit (take i ds) m0)"
+          "snd (fold_map write (take i ds) m0)"
           i'
-          "snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))"]
+          "snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))"]
     by simp
   then obtain L
-    where L_def: "alocs (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))) i'
+    where L_def: "alocs (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i'
             = Some L"
-      and "loc (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0))))
-        = loc (snd (fold_map minit (take i ds) m0)) \<union> fset L"
+      and "loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0))))
+        = loc (snd (fold_map write (take i ds) m0)) \<union> fset L"
     unfolding s_union_fs_def pred_some_def by blast
-  moreover from assms(1,2) minit_obtain[of ds m0] have
-    "prefix (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))) m" by auto
+  moreover from assms(1,2) write_obtain[of ds m0] have
+    "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) m" by auto
   with L_def have "alocs m i' = Some L" using a_data.locs_prefix by blast
   ultimately show ?thesis unfolding fs_subs_s_def pred_some_def by blast
 qed
 
-lemma prefix_minit_locs_safe_same:
-  assumes "prefix (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) m"
+lemma prefix_write_locs_safe_same:
+  assumes "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
       and "alocs_safe s m y = Some L'"
-      and "y = fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))"
-      and "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-            l < length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
+      and "y = fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))"
+      and "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+            l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
           \<longrightarrow> l |\<notin>| s"
-    shows "alocs_safe s (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) y = Some L'"
+    shows "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
 proof -
   from assms(3) obtain LL
-    where "alocs_safe s (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) y = Some LL"
-    using minit_loc_safe[OF assms(4)] unfolding s_union_fs_def pred_some_def by blast
+    where "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some LL"
+    using write_loc_safe[OF assms(4)] unfolding s_union_fs_def pred_some_def by blast
   then show ?thesis using assms(1,2)
     by (metis a_data.locs_safe_prefix)
 qed
 
-lemma prefix_minit_nth_same:
+lemma prefix_write_nth_same:
   assumes "m $ x = Some (mdata.Array xs)"
-      and "fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0))) = y"
+      and "fst (write (ds ! n) (snd (fold_map write (take n ds) m0))) = y"
       and "alocs_safe s m y = Some L'"
       and "x |\<in>| L'"
-      and "prefix (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) m"
-    shows "snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))) $ x = Some (mdata.Array xs)"
+      and "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
+    shows "snd (write (ds ! n) (snd (fold_map write (take n ds) m0))) $ x = Some (mdata.Array xs)"
 proof -
   from assms(2) obtain L
-    where "alocs (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) y = Some L"
-      and subs: "fset L \<subseteq> loc (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))"
-    using minit_loc[of "ds ! n" "snd (fold_map minit (take n ds) m0)"]
+    where "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L"
+      and subs: "fset L \<subseteq> loc (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"
+    using write_loc[of "ds ! n" "snd (fold_map write (take n ds) m0)"]
     unfolding s_union_fs_def pred_some_def by force
   then have "alocs m y = Some L" using a_data.locs_prefix[OF assms(5)] by auto
   with assms(4) have "x |\<in>| L"
     by (metis assms(3) bot.extremum a_data.locs_def option.inject a_data.locs_safe_subset_same)
   with subs obtain l
-    where "snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))) $ x = Some l"
+    where "snd (write (ds ! n) (snd (fold_map write (take n ds) m0))) $ x = Some l"
     unfolding loc_def by auto
   with assms(1,5) show ?thesis by (metis nth_safe_prefix)
 qed
 
 section \<open>Memory Init and Memory Copy\<close>
 
-theorem minit_acopy_memory_safe:
-  assumes "\<forall>l \<ge> length m0. l < length (snd (minit cd m0)) \<longrightarrow> \<not> l |\<in>| s"
-  shows "\<forall>mx. prefix (snd (minit cd m0)) mx
-        \<longrightarrow> acopy_safe s mx (fst (minit cd m0)) = Some cd"
+theorem write_aread_safe:
+  assumes "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
+  shows "\<forall>mx. prefix (snd (write cd m0)) mx
+        \<longrightarrow> aread_safe s mx (fst (write cd m0)) = Some cd"
   using assms
 proof (induction cd arbitrary: m0 s)
   case (Value x)
@@ -6162,39 +6162,39 @@ next
   show ?case
   proof (rule allI, rule impI)
     fix mx
-    assume 1: "prefix (snd (minit (adata.Array ds) m0)) mx"
-    from minit_obtain obtain xs
-      where xs1: "snd (minit (Array ds) m0) $ fst (minit (Array ds) m0) = Some (mdata.Array xs)"
+    assume 1: "prefix (snd (write (adata.Array ds) m0)) mx"
+    from write_obtain obtain xs
+      where xs1: "snd (write (Array ds) m0) $ fst (write (Array ds) m0) = Some (mdata.Array xs)"
         and xs2: "length xs = length ds"
-        and xs3: "\<forall>n < length xs. xs!n < fst (minit (Array ds) m0)
-          \<and> xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))"
+        and xs3: "\<forall>n < length xs. xs!n < fst (write (Array ds) m0)
+          \<and> xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
       by metis
-    moreover have "\<not> fst (minit (Array ds) m0) |\<in>| s" using Array(2)
-      by (metis less_Suc_eq_le minit_length_inc minit_length_suc nth_safe_length xs1)
-    ultimately have "acopy_safe s
-                      (snd (minit (adata.Array ds) m0))
-                      (fst (minit (adata.Array ds) m0))
-                   = those (map (acopy_safe
-                      (finsert (fst (minit (Array ds) m0)) s)
-                      (snd (minit (Array ds) m0))) xs)
+    moreover have "\<not> fst (write (Array ds) m0) |\<in>| s" using Array(2)
+      by (metis less_Suc_eq_le write_length_inc write_length_suc nth_safe_length xs1)
+    ultimately have "aread_safe s
+                      (snd (write (adata.Array ds) m0))
+                      (fst (write (adata.Array ds) m0))
+                   = those (map (aread_safe
+                      (finsert (fst (write (Array ds) m0)) s)
+                      (snd (write (Array ds) m0))) xs)
                      \<bind> Some \<circ> Array" by (simp add:case_memory_def)
-    moreover have "those (map (acopy_safe
-                    (finsert (fst (minit (Array ds) m0)) s)
-                    (snd (minit (Array ds) m0))) xs)
+    moreover have "those (map (aread_safe
+                    (finsert (fst (write (Array ds) m0)) s)
+                    (snd (write (Array ds) m0))) xs)
                   = Some ds"
-    proof (rule take_all[where ?P = "\<lambda>xs ys. those (map (acopy_safe
-                                    (finsert (fst (minit (Array ds) m0)) s)
-                                    (snd (minit (Array ds) m0))) xs) = Some ys"])
-      show "\<forall>n \<le> length xs. those (map (acopy_safe
-                  (finsert (fst (minit (Array ds) m0)) s)
-                  (snd (minit (Array ds) m0))) (take n xs))
+    proof (rule take_all[where ?P = "\<lambda>xs ys. those (map (aread_safe
+                                    (finsert (fst (write (Array ds) m0)) s)
+                                    (snd (write (Array ds) m0))) xs) = Some ys"])
+      show "\<forall>n \<le> length xs. those (map (aread_safe
+                  (finsert (fst (write (Array ds) m0)) s)
+                  (snd (write (Array ds) m0))) (take n xs))
                 = Some (take n ds)"
       proof (rule allI, rule impI)
         fix n
         assume "n \<le> length xs"
-        then show "those (map (acopy_safe
-                (finsert (fst (minit (Array ds) m0)) s)
-                (snd (minit (Array ds) m0))) (take n xs))
+        then show "those (map (aread_safe
+                (finsert (fst (write (Array ds) m0)) s)
+                (snd (write (Array ds) m0))) (take n xs))
               = Some (take n ds)"
         proof (induction n)
           case 0
@@ -6207,72 +6207,72 @@ next
             apply (rule List.take_Suc_conv_app_nth)
             using \<open>n < length xs\<close> take_Suc_conv_app_nth xs2 by auto
           moreover have ***:
-            "acopy_safe
-              (finsert (fst (minit (Array ds) m0)) s)
-              (snd (minit (Array ds) m0))
+            "aread_safe
+              (finsert (fst (write (Array ds) m0)) s)
+              (snd (write (Array ds) m0))
               (xs!n)
              = Some (ds!n)"
           proof -
-            have "acopy_safe (finsert (fst (minit (Array ds) m0)) s)
-              (snd (minit (Array ds) m0))
-              (fst (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
+            have "aread_safe (finsert (fst (write (Array ds) m0)) s)
+              (snd (write (Array ds) m0))
+              (fst (write (ds!n) (snd (fold_map write (take n ds) m0))))
             = Some (ds!n)"
             proof -
               have "ds!n \<in> set ds" using \<open>n < length xs\<close> xs2 by auto
               moreover from \<open>n < length xs\<close> have "n < length ds" using xs2 by simp
               then have
                 "prefix
-                  (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-                  (snd (minit (Array ds) m0))"
-                using minit_sprefix_take using sprefix_prefix by blast
-              moreover have "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-                l < length (snd (minit (ds!n) (snd (fold_map minit (take n ds) m0))))
-                \<longrightarrow> l |\<notin>| (finsert (fst (minit (Array ds) m0)) s)"
+                  (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+                  (snd (write (Array ds) m0))"
+                using write_sprefix_take using sprefix_prefix by blast
+              moreover have "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+                l < length (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
+                \<longrightarrow> l |\<notin>| (finsert (fst (write (Array ds) m0)) s)"
               using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
               ultimately show ?thesis using Array(1) by blast
             qed
-            moreover have "xs!n = fst (minit (ds!n) (snd (fold_map minit (take n ds) m0)))"
+            moreover have "xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
               using xs3 \<open>n < length xs\<close> by simp
             ultimately show ?thesis by simp
           qed
           moreover from \<open>n < length xs\<close> have "n \<le> length xs" by simp
           then have
-            "those (map (acopy_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-              (snd (minit (adata.Array ds) m0)))
+            "those (map (aread_safe (finsert (fst (write (adata.Array ds) m0)) s)
+              (snd (write (adata.Array ds) m0)))
               (take n xs))
              = Some (take n ds)" using Suc(1) xs2 by argo
           ultimately show
-            "those (map (acopy_safe (finsert (fst (minit (adata.Array ds) m0)) s)
-              (snd (minit (adata.Array ds) m0)))
+            "those (map (aread_safe (finsert (fst (write (adata.Array ds) m0)) s)
+              (snd (write (adata.Array ds) m0)))
               (take (Suc n) xs))
              = Some (take (Suc n) ds)" using those_those \<open>n < length xs\<close>
             by fastforce
         qed
       qed
     qed (rule xs2)
-    ultimately show "acopy_safe s mx (fst (minit (adata.Array ds) m0)) = Some (adata.Array ds)"
-      by (metis 1 bind.bind_lunit comp_apply a_data.copy_memory_safe_prefix)
+    ultimately show "aread_safe s mx (fst (write (adata.Array ds) m0)) = Some (adata.Array ds)"
+      by (metis 1 bind.bind_lunit comp_apply a_data.read_safe_prefix)
   qed
 qed
 
-corollary minit_copy:
-  assumes "minit cd m0 = (l, m)"
+corollary write_read:
+  assumes "write cd m0 = (l, m)"
       and "prefix m mx"
-    shows "acopy mx l = Some cd"
-  using assms minit_acopy_memory_safe unfolding a_data.copy_def
+    shows "aread mx l = Some cd"
+  using assms write_aread_safe unfolding a_data.read_def
   by (metis fempty_iff fst_conv snd_conv)
 
 section \<open>Minit and Separation Check\<close>
 
-lemma minit_acheck:
-  assumes "minit cd m0 = (l, m1)"
+lemma write_adisjoined:
+  assumes "write cd m0 = (l, m1)"
       and "alocs_safe s m1 l = Some L"
-      and "\<forall>l \<ge> length m0. l < length (snd (minit cd m0)) \<longrightarrow> \<not> l |\<in>| s"
-    shows "acheck m1 L"
+      and "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
+    shows "adisjoined m1 L"
   using assms
-proof (induction arbitrary: L l m0 rule:minit.induct)
+proof (induction arbitrary: L l m0 rule:write.induct)
   case (1 x m)
-  then show ?case unfolding a_data.check_def
+  then show ?case unfolding a_data.disjoined_def
     by (auto simp add:length_append_def case_memory_def split:if_split_asm)
 next
   case (2 ds m)
@@ -6290,10 +6290,10 @@ next
         (1) "x = l"
       | (2) n y L'
       where "n<length ds"
-        and "fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0))) = y"
+        and "fst (write (ds ! n) (snd (fold_map write (take n ds) m0))) = y"
         and "alocs_safe s m y = Some L'"
         and "x |\<in>| L'"
-      using minit_locs_safe_in "2.prems"(1,2) by blast
+      using write_locs_safe_in "2.prems"(1,2) by blast
     then show
       "\<forall>xs. m $ x = Some (mdata.Array xs)
       \<longrightarrow> (\<forall>i j i' j' L L'.
@@ -6322,48 +6322,48 @@ next
                     \<and> alocs m i' = Some L
                     \<and> alocs m j' = Some L'"
           moreover from 2(2) have
-            "snd (minit (adata.Array ds) m0) $ fst (minit (adata.Array ds) m0)
+            "snd (write (adata.Array ds) m0) $ fst (write (adata.Array ds) m0)
             = Some (mdata.Array xs)"
             using * 1 by simp
           then have
             "length xs = length ds"
             and 0:  "\<forall>n<length xs.
-              xs ! n < fst (minit (adata.Array ds) m0) \<and>
-              xs ! n = fst (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))
+              xs ! n < fst (write (adata.Array ds) m0) \<and>
+              xs ! n = fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))
               \<and> prefix
-                  (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))
-                  (snd (minit (adata.Array ds) m0))"
-            using minit_obtain[of ds m0] *
+                  (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
+                  (snd (write (adata.Array ds) m0))"
+            using write_obtain[of ds m0] *
             by (fastforce, metis (mono_tags, lifting) mdata.inject(2) option.inject)
           then have
-            "j' = fst (minit (ds ! j) (snd (fold_map minit (take j ds) m0)))"
+            "j' = fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))"
             and ***: "prefix
-                        (snd (minit (ds ! j) (snd (fold_map minit (take j ds) m0))))
-                        (snd (minit (adata.Array ds) m0))"
+                        (snd (write (ds ! j) (snd (fold_map write (take j ds) m0))))
+                        (snd (write (adata.Array ds) m0))"
             by (metis "**" nth_safe_def nth_safe_length option.sel)+
           moreover have "j < length ds" using `length xs = length ds`
             by (metis "**" nth_safe_length)
           then have
             "s_disj_fs
-              (loc (snd (minit (ds ! i ) (snd (fold_map minit (take i ds) m0)))))
-              (alocs m (fst (minit (ds ! j) (snd (fold_map minit (take j ds) m0)))))"
-            using fold_map_minit_alocs[OF 2(2), of j i] `i < j` by blast
+              (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))
+              (alocs m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
+            using fold_map_write_alocs[OF 2(2), of j i] `i < j` by blast
           ultimately have
             "s_disj_fs
-              (loc (snd (minit (ds ! i ) (snd (fold_map minit (take i ds) m0)))))
+              (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))
               (Some L')"
             using ** by simp
           moreover have
-            "fset L \<subseteq> (loc (snd (minit (ds ! i ) (snd (fold_map minit (take i ds) m0)))))"
+            "fset L \<subseteq> (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))"
           proof -
-            from 0 have "i' = fst (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))"
+            from 0 have "i' = fst (write (ds ! i) (snd (fold_map write (take i ds) m0)))"
               by (metis "**" nth_safe_def nth_safe_length option.sel)+
             moreover from `j < length ds` have "i < length ds" using `i<j` by simp
             ultimately have
               "fs_subs_s
                 (alocs m i')
-                (loc (snd (minit (ds ! i) (snd (fold_map minit (take i ds) m0)))))"
-              using fold_map_minit_loc[OF 2(2), of i i'] 2(2) ** `j < length ds` `i < j` by simp
+                (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))"
+              using fold_map_write_loc[OF 2(2), of i i'] 2(2) ** `j < length ds` `i < j` by simp
             then show ?thesis unfolding fs_subs_s_def pred_some_def using ** by simp
           qed
           ultimately have "L |\<inter>| L' = {||}" unfolding s_disj_fs_def pred_some_def by auto
@@ -6383,41 +6383,41 @@ next
       case 22: 2
       from 22(1) have "ds ! n \<in> set ds" by simp
       moreover from 22(2) have
-        "minit (ds ! n) (snd (fold_map minit (take n ds) m0))
-        = (y, snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0))))" by auto
+        "write (ds ! n) (snd (fold_map write (take n ds) m0))
+        = (y, snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))" by auto
       moreover have
-        *: "\<forall>l\<ge>length (snd (fold_map minit (take n ds) m0)).
-            l < length (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) \<longrightarrow> l |\<notin>| s"
-        by (metis "2.prems"(3) "22"(1) butlast_minit finsertCI fold_map_length fold_map_take_fst
-            length_minit_minit minit_fold_map_less)
-      moreover have **: "prefix (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) m"
-        by (metis "2.prems"(1) "22"(1) minit_obtain split_pairs)
+        *: "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
+            l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) \<longrightarrow> l |\<notin>| s"
+        by (metis "2.prems"(3) "22"(1) butlast_write finsertCI fold_map_length fold_map_take_fst
+            length_write_write write_fold_map_less)
+      moreover have **: "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
+        by (metis "2.prems"(1) "22"(1) write_obtain split_pairs)
       then have 7:
-        "alocs_safe s (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) y = Some L'"
-        using prefix_minit_locs_safe_same[OF _ 22(3) _ *] 22(2) by blast
+        "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
+        using prefix_write_locs_safe_same[OF _ 22(3) _ *] 22(2) by blast
       ultimately have
-        "acheck (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) L'"
+        "adisjoined (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) L'"
         using 2(1)[of
             "ds ! n"
-            "(snd (fold_map minit (take n ds) m0))"
+            "(snd (fold_map write (take n ds) m0))"
             y
-            "snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))"
+            "snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))"
             L']
         by simp
       moreover from 22 have "x |\<in>| L'" by blast
       ultimately have
-        *: "\<forall>xs. (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) $ x
+        *: "\<forall>xs. (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) $ x
             = Some (mdata.Array xs)
            \<longrightarrow> (\<forall>i j i' j' L L'.
                 i \<noteq> j
                 \<and> xs $ i = Some i'
                 \<and> xs $ j = Some j'
-                \<and> alocs (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) i'
+                \<and> alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i'
                   = Some L
-                \<and> alocs (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) j'
+                \<and> alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j'
                   = Some L'
              \<longrightarrow> L |\<inter>| L' = {||})"
-        by (simp add: a_data.check_def)
+        by (simp add: a_data.disjoined_def)
       show ?thesis
       proof (rule, rule, rule, rule, rule, rule, rule, rule, rule)
         fix xs i j i' j' L' L''
@@ -6428,20 +6428,20 @@ next
                     \<and> alocs m i' = Some L'
                     \<and> alocs m j' = Some L''"
         moreover have
-          *****: "(snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) $ x
+          *****: "(snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) $ x
           = Some (mdata.Array xs)"
-          using prefix_minit_nth_same[OF *** _ 22(3,4) **] "22"(2) by auto
+          using prefix_write_nth_same[OF *** _ 22(3,4) **] "22"(2) by auto
         moreover have
-          "alocs (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) i' = Some L'"
+          "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i' = Some L'"
           using a_data.locs_safe_prefix_in_locs[OF 7 22(4) *****] **** ** by blast
         moreover have
-          "alocs (snd (minit (ds ! n) (snd (fold_map minit (take n ds) m0)))) j' = Some L''"
+          "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j' = Some L''"
           using a_data.locs_safe_prefix_in_locs[OF 7 22(4) *****] **** ** by blast
         ultimately show "L' |\<inter>| L'' = {||}" using * by blast
       qed
     qed
   qed
-  then show ?case unfolding a_data.check_def
+  then show ?case unfolding a_data.disjoined_def
     by (simp add: a_data.locs_def alocs_safe_def)
 qed
 
