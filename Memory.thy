@@ -1020,13 +1020,13 @@ begin
 
 section \<open>Memory Locations\<close>
 
-function locs_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> (location fset) option" where
-  "locs_safe s m l = 
+function range_safe :: "location fset \<Rightarrow> 'v memory \<Rightarrow> location \<Rightarrow> (location fset) option" where
+  "range_safe s m l = 
    (if l |\<in>| s then None else
       case_memory m l
         (\<lambda>v. Some {|l|})
         (\<lambda>xs. fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           xs
           (Some {|l|})))"
 by pat_completeness auto
@@ -1034,8 +1034,8 @@ termination
   apply (relation "measure (\<lambda>(s,m,_). card ({0..length m} - fset s))")
   using card_less_card by simp_all
 
-lemma locs_safe_obtains:
-  assumes "locs_safe s m l = Some x"
+lemma range_safe_obtains:
+  assumes "range_safe s m l = Some x"
     obtains
     (1) v where "l |\<notin>| s"
     and "m $ l = Some (mdata.Value v)"
@@ -1043,18 +1043,18 @@ lemma locs_safe_obtains:
   | (2) xs where "l |\<notin>| s"
     and "m $ l = Some (mdata.Array xs)"
     and "fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           xs
           (Some {|l|})
         = Some x"
   using assms
   by (cases "m$l", auto split:if_split_asm mdata.split_asm simp add: case_memory_def)
 
-lemma locs_safe_subs:
-  assumes "locs_safe s m l = Some X"
+lemma range_safe_subs:
+  assumes "range_safe s m l = Some X"
   shows "l |\<in>| X"
   using assms
-proof (cases rule: locs_safe_obtains)
+proof (cases rule: range_safe_obtains)
   case (1 v)
   then show ?thesis by simp
 next
@@ -1062,14 +1062,14 @@ next
   then show ?thesis using fold_some by force
 qed
 
-lemma locs_safe_subs2:
-  assumes "locs_safe s m l = Some X"
+lemma range_safe_subs2:
+  assumes "range_safe s m l = Some X"
     shows "fset X \<subseteq> loc m"
   using assms
-proof (induction l arbitrary: X rule:locs_safe.induct[where ?a0.0=s])
+proof (induction l arbitrary: X rule:range_safe.induct[where ?a0.0=s])
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule:locs_safe_obtains)
+  proof (cases rule:range_safe_obtains)
     case 2: (1 v)
     show ?thesis
     proof
@@ -1083,53 +1083,53 @@ proof (induction l arbitrary: X rule:locs_safe.induct[where ?a0.0=s])
     case (2 xs)
     moreover have "l \<in> loc m"
       by (simp add: 2(2) loc_def nth_safe_length)
-    moreover have "\<forall>x \<in> set xs. \<forall>L. locs_safe (finsert l s) m x = Some L \<longrightarrow> fset L \<subseteq> loc m"
+    moreover have "\<forall>x \<in> set xs. \<forall>L. range_safe (finsert l s) m x = Some L \<longrightarrow> fset L \<subseteq> loc m"
       using 1(1)[OF 2(1,2)] by simp
-    ultimately show ?thesis using fold_subs[of _ "locs_safe (finsert l s) m"] by blast
+    ultimately show ?thesis using fold_subs[of _ "range_safe (finsert l s) m"] by blast
   qed
 qed
 
-lemma locs_safe_obtains_subset:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_obtains_subset:
+  assumes "range_safe s m l = Some L"
       and "m $ l = Some (mdata.Array xs)"
       and "l' \<in> set xs"
-    obtains L' where "locs_safe (finsert l s) m l' = Some L'" and "L' |\<subseteq>| L"
+    obtains L' where "range_safe (finsert l s) m l' = Some L'" and "L' |\<subseteq>| L"
   using assms
 proof -
   from assms(1) have "l |\<notin>| s" by auto
-  with assms(1,2) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) =
+  with assms(1,2) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) =
     Some L" by (simp add:case_memory_def)
   then show ?thesis by (metis assms(3) fold_some_subs that)
 qed
 
-lemma locs_safe_nin_same:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_nin_same:
+  assumes "range_safe s m l = Some L"
       and "\<forall>l |\<in>| s' - s. l |\<notin>| L"
-    shows "locs_safe s' m l = Some L"
+    shows "range_safe s' m l = Some L"
   using assms
-proof (induction l arbitrary: L s' rule:locs_safe.induct[where ?a0.0=s])
+proof (induction l arbitrary: L s' rule:range_safe.induct[where ?a0.0=s])
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule:locs_safe_obtains)
+  proof (cases rule:range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1(3) by (auto simp add:case_memory_def)
   next
     case (2 xs)
-    moreover from 2(1) 1(3) have "l |\<notin>| s'" using "1.prems"(1) locs_safe_subs by blast
+    moreover from 2(1) 1(3) have "l |\<notin>| s'" using "1.prems"(1) range_safe_subs by blast
     moreover have
-      "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
-      = fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
+      "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
+      = fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
     proof (rule fold_same)
-      show "\<forall>x\<in>set xs. locs_safe (finsert l s) m x = locs_safe (finsert l s') m x"
+      show "\<forall>x\<in>set xs. range_safe (finsert l s) m x = range_safe (finsert l s') m x"
       proof
         fix x assume "x \<in> set xs"
         moreover from `x \<in> set xs` obtain y
-          where "locs_safe (finsert l s) m x = Some y"
+          where "range_safe (finsert l s) m x = Some y"
             and "y |\<subseteq>| L"
           using fold_some_subs[OF 2(3)] by blast
         moreover from 1(3) have "\<forall>l|\<in>|finsert l s' |-| finsert l s. l |\<notin>| y"
           using `y |\<subseteq>| L` by blast
-        ultimately show "locs_safe (finsert l s) m x = locs_safe (finsert l s') m x"
+        ultimately show "range_safe (finsert l s) m x = range_safe (finsert l s') m x"
           using 1(1)[OF 2(1,2), of x _ _ y "finsert l s'"] by simp
       qed
     qed
@@ -1137,34 +1137,34 @@ proof (induction l arbitrary: L s' rule:locs_safe.induct[where ?a0.0=s])
   qed
 qed
 
-lemma locs_safe_same:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_same:
+  assumes "range_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "locs_safe s m' l = Some L"
+    shows "range_safe s m' l = Some L"
   using assms
-proof (induction l arbitrary: L rule:locs_safe.induct)
+proof (induction l arbitrary: L rule:range_safe.induct)
   case (1 s m' l)
   from 1(2) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1 by (auto simp add: case_memory_def)
   next
     case (2 xs)
-    moreover have "l |\<in>| L" by (meson "1.prems"(1) locs_safe_subs)
+    moreover have "l |\<in>| L" by (meson "1.prems"(1) range_safe_subs)
     ultimately have "m' $ l = Some (mdata.Array xs)" using 1 by auto
     moreover
       have
-        "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
-        = fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
+        "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
+        = fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
     proof (rule fold_same)
-      show "\<forall>x\<in>set xs. locs_safe (finsert l s) m x = locs_safe (finsert l s) m' x"
+      show "\<forall>x\<in>set xs. range_safe (finsert l s) m x = range_safe (finsert l s) m' x"
       proof
         fix x assume "x \<in> set xs"
         moreover from `x \<in> set xs` obtain y
-          where "locs_safe (finsert l s) m x = Some y" and "y |\<subseteq>| L"
+          where "range_safe (finsert l s) m x = Some y" and "y |\<subseteq>| L"
           using fold_some_subs[OF 2(3)] by blast
         moreover from `y |\<subseteq>| L` have "\<forall>l'|\<in>|y. m' $ l' = m $ l'" using 1(3) by blast
-        ultimately show "locs_safe (finsert l s) m x = locs_safe (finsert l s) m' x"
+        ultimately show "range_safe (finsert l s) m x = range_safe (finsert l s) m' x"
           using 1(1)[OF 2(1) `m' $ l = Some (mdata.Array xs)`] by simp
       qed
     qed
@@ -1173,34 +1173,34 @@ proof (induction l arbitrary: L rule:locs_safe.induct)
 qed
 
 (*TODO: Rename*)
-lemma locs_safe_same4:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_same4:
+  assumes "range_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. (\<exists>xs. m' $ l' = Some (mdata.Array xs) \<and> m $ l' = Some (mdata.Array xs)) \<or> (\<exists>xs. m' $ l' = Some (mdata.Value xs))"
-    shows "\<exists>L'. locs_safe s m' l = Some L'"
+    shows "\<exists>L'. range_safe s m' l = Some L'"
   using assms
-proof (induction l arbitrary: L rule:locs_safe.induct)
+proof (induction l arbitrary: L rule:range_safe.induct)
   case (1 s m' l)
   from 1(2) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1 by (auto simp add: case_memory_def)
   next
     case (2 xs)
-    moreover have "l |\<in>| L" by (meson "1.prems"(1) locs_safe_subs)
+    moreover have "l |\<in>| L" by (meson "1.prems"(1) range_safe_subs)
     ultimately consider "m' $ l = Some (mdata.Array xs)" | "\<exists>xs. m' $ l = Some (mdata.Value xs)" using 1 by auto
     then show ?thesis
     proof (cases)
       case a: 1
-      moreover have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) \<noteq> None"
+      moreover have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) \<noteq> None"
       proof (rule fold_f_set_some)
-        show "\<forall>a\<in>set xs. locs_safe (finsert l s) m' a \<noteq> None"
+        show "\<forall>a\<in>set xs. range_safe (finsert l s) m' a \<noteq> None"
         proof
           fix a assume "a\<in>set xs"
-          moreover from 1(2) obtain L' where "locs_safe (finsert l s) m a = Some L'" and "L' |\<subseteq>| L"
-            by (meson "2"(2) calculation locs_safe_obtains_subset)
+          moreover from 1(2) obtain L' where "range_safe (finsert l s) m a = Some L'" and "L' |\<subseteq>| L"
+            by (meson "2"(2) calculation range_safe_obtains_subset)
           moreover from 1(3) have "\<forall>l'|\<in>|L'. (\<exists>xs. m' $ l' = Some (mdata.Array xs) \<and> m $ l' = Some (mdata.Array xs)) \<or> (\<exists>xs. m' $ l' = Some (mdata.Value xs))"
             using calculation(3) by auto
-          ultimately show "locs_safe (finsert l s) m' a \<noteq> None" using 1(1)[OF 2(1),of xs a _ _ L'] a by blast
+          ultimately show "range_safe (finsert l s) m' a \<noteq> None" using 1(1)[OF 2(1),of xs a _ _ L'] a by blast
         qed
       qed
       ultimately show ?thesis using 1 by (auto simp add:case_memory_def)
@@ -1212,39 +1212,39 @@ proof (induction l arbitrary: L rule:locs_safe.induct)
 qed
 
 (*TODO: Rename*)
-lemma locs_safe_subs3:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_subs3:
+  assumes "range_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. (\<exists>xs. m' $ l' = Some (mdata.Array xs) \<and> m $ l' = Some (mdata.Array xs)) \<or> (\<exists>xs. m' $ l' = Some (mdata.Value xs))"
-    shows "\<exists>L'. locs_safe s m' l = Some L' \<and> L' |\<subseteq>| L"
+    shows "\<exists>L'. range_safe s m' l = Some L' \<and> L' |\<subseteq>| L"
   using assms
-proof (induction l arbitrary: L rule:locs_safe.induct)
+proof (induction l arbitrary: L rule:range_safe.induct)
   case (1 s m' l)
   from 1(2) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1 by (auto simp add: case_memory_def)
   next
     case (2 xs)
-    moreover have "l |\<in>| L" by (meson "1.prems"(1) locs_safe_subs)
+    moreover have "l |\<in>| L" by (meson "1.prems"(1) range_safe_subs)
     ultimately consider "m' $ l = Some (mdata.Array xs)" | "\<exists>xs. m' $ l = Some (mdata.Value xs)" using 1 by auto
     then show ?thesis
     proof (cases)
       case a: 1
-      moreover from locs_safe_same4[OF 1(2,3)] obtain L' where "locs_safe s m' l = Some L'" by blast
+      moreover from range_safe_same4[OF 1(2,3)] obtain L' where "range_safe s m' l = Some L'" by blast
       then have
-          "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) = Some L'"
+          "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) = Some L'"
         using 1 a 2 by (auto simp add:case_memory_def)
-      then obtain L' where *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) = Some (L')" by auto
+      then obtain L' where *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|}) = Some (L')" by auto
       moreover have "fset L' \<subseteq> fset L"
       proof (rule fold_subs[OF _ *])
         from \<open>l |\<in>| L\<close> show "fset {|l|} \<subseteq> fset L" by auto
       next
-        show "\<forall>x\<in>set xs. \<forall>L'. locs_safe (finsert l s) m' x = Some L' \<longrightarrow> fset L' \<subseteq> fset L"
+        show "\<forall>x\<in>set xs. \<forall>L'. range_safe (finsert l s) m' x = Some L' \<longrightarrow> fset L' \<subseteq> fset L"
         proof (rule,rule,rule)
           fix x L' assume "x \<in> set xs"
-          and "locs_safe (finsert l s) m' x = Some L'"
-          moreover obtain L'' where "locs_safe (finsert l s) m x = Some L''" and "L'' |\<subseteq>| L"
-            using "1.prems"(1) "2"(2) calculation(1) locs_safe_obtains_subset by blast
+          and "range_safe (finsert l s) m' x = Some L'"
+          moreover obtain L'' where "range_safe (finsert l s) m x = Some L''" and "L'' |\<subseteq>| L"
+            using "1.prems"(1) "2"(2) calculation(1) range_safe_obtains_subset by blast
           moreover have "\<forall>l'|\<in>|L''. (\<exists>xs. m' $ l' = Some (mdata.Array xs) \<and> m $ l' = Some (mdata.Array xs)) \<or> (\<exists>xs. m' $ l' = Some (mdata.Value xs))" using 1(3) \<open>L'' |\<subseteq>| L\<close> by auto
           ultimately show "fset L' \<subseteq> fset L" using 1(1)[OF 2(1) a, of x _ _ L''] by fastforce
         qed
@@ -1257,30 +1257,30 @@ proof (induction l arbitrary: L rule:locs_safe.induct)
 qed
 qed
 
-lemma locs_safe_subset_same:
-  assumes "locs_safe s m l = Some x"
+lemma range_safe_subset_same:
+  assumes "range_safe s m l = Some x"
     and "s' |\<subseteq>| s"
-  shows "locs_safe s' m l = Some x"
+  shows "range_safe s' m l = Some x"
   using assms
-proof (induction arbitrary: s x rule:locs_safe.induct)
+proof (induction arbitrary: s x rule:range_safe.induct)
   case (1 s' m l)
   from 1(2) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1 by (auto simp add: case_memory_def)
   next
     case (2 xs)
     moreover
       have
-        "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
-        = fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
+        "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
+        = fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
     proof (rule fold_same)
-      show "\<forall>x\<in>set xs. locs_safe (finsert l s) m x = locs_safe (finsert l s') m x"
+      show "\<forall>x\<in>set xs. range_safe (finsert l s) m x = range_safe (finsert l s') m x"
       proof
         fix x assume "x \<in> set xs"
         moreover from `x \<in> set xs` obtain y
-          where " locs_safe (finsert l s) m x = Some y" using fold_some_subs[OF 2(3)] by blast
-        ultimately show "locs_safe (finsert l s) m x = locs_safe (finsert l s') m x" using 1 2
+          where " range_safe (finsert l s) m x = Some y" using fold_some_subs[OF 2(3)] by blast
+        ultimately show "range_safe (finsert l s) m x = range_safe (finsert l s') m x" using 1 2
           by (metis fin_mono finsert_mono)
       qed
     qed
@@ -1288,15 +1288,15 @@ proof (induction arbitrary: s x rule:locs_safe.induct)
   qed
 qed
 
-lemma locs_safe_in_subs:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_in_subs:
+  assumes "range_safe s m l = Some L"
       and "l' |\<in>| L"
-    shows "\<exists>L'. locs_safe s m l' = Some L' \<and> L' |\<subseteq>| L"
+    shows "\<exists>L'. range_safe s m l' = Some L' \<and> L' |\<subseteq>| L"
   using assms
-proof (induction l arbitrary: L rule:locs_safe.induct[where ?a0.0=s])
+proof (induction l arbitrary: L rule:range_safe.induct[where ?a0.0=s])
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule:locs_safe_obtains)
+  proof (cases rule:range_safe_obtains)
     case _: (1 v)
     then show ?thesis using 1(3) apply auto
       using "1.prems"(1) by auto
@@ -1305,58 +1305,58 @@ proof (induction l arbitrary: L rule:locs_safe.induct[where ?a0.0=s])
     show ?thesis
     proof (cases "l = l'")
       case True
-      then have "locs_safe s m l' = Some L"
+      then have "range_safe s m l' = Some L"
         using 2 1 by (auto simp add:case_memory_def)
       then show ?thesis using fold_some[OF 2(3)] by simp 
     next
       case False
-      then obtain x L'' where "x \<in> set xs" and "locs_safe (finsert l s) m x = Some L''" and "l' |\<in>| L''" and "L'' |\<subseteq>| L" using 1(3) fold_some_ex[OF 2(3)] fold_some_subs[OF 2(3)] by fastforce
-      then have "\<exists>L'. locs_safe s m l' = Some L' \<and> L' |\<subseteq>| L''" using 1(1)[OF 2(1,2)]
-        by (meson locs_safe_subset_same fsubset_finsertI)
+      then obtain x L'' where "x \<in> set xs" and "range_safe (finsert l s) m x = Some L''" and "l' |\<in>| L''" and "L'' |\<subseteq>| L" using 1(3) fold_some_ex[OF 2(3)] fold_some_subs[OF 2(3)] by fastforce
+      then have "\<exists>L'. range_safe s m l' = Some L' \<and> L' |\<subseteq>| L''" using 1(1)[OF 2(1,2)]
+        by (meson range_safe_subset_same fsubset_finsertI)
       then show ?thesis using `L'' |\<subseteq>| L` by auto
     qed
   qed
 qed
 
-lemma locs_safe_disj:
-  "\<forall>L. locs_safe s m l = Some L \<longrightarrow> s |\<inter>| L = {||}"(is "?P s m l")
-proof (induction rule: locs_safe.induct[where ?P = ?P])
+lemma range_safe_disj:
+  "\<forall>L. range_safe s m l = Some L \<longrightarrow> s |\<inter>| L = {||}"(is "?P s m l")
+proof (induction rule: range_safe.induct[where ?P = ?P])
   case (1 s m l)
   show ?case
   proof (rule allI, rule impI)
     fix L
-    assume "locs_safe s m l = Some L "
+    assume "range_safe s m l = Some L "
     then show "s |\<inter>| L = {||}"
-    proof (cases rule: locs_safe_obtains)
+    proof (cases rule: range_safe_obtains)
       case (1 v)
       then show ?thesis by simp
     next
       case (2 xs)
       moreover from 2 have
-        *: "\<forall>x \<in> set xs. \<forall>L. locs_safe (finsert l s) m x = Some L \<longrightarrow> finsert l s |\<inter>| L = {||}"
+        *: "\<forall>x \<in> set xs. \<forall>L. range_safe (finsert l s) m x = Some L \<longrightarrow> finsert l s |\<inter>| L = {||}"
         using 1(1) by simp
-      ultimately show ?thesis using fold_disj[of xs "locs_safe (finsert l s) m" s _ L] by blast
+      ultimately show ?thesis using fold_disj[of xs "range_safe (finsert l s) m" s _ L] by blast
     qed
   qed
 qed
 
-lemma locslocs:
-  assumes "locs_safe s0 m l1 = Some L1"
-      and "locs_safe s1 m l1 = Some L2"
+lemma range_range:
+  assumes "range_safe s0 m l1 = Some L1"
+      and "range_safe s1 m l1 = Some L2"
     shows "L1 = L2"
   using assms
-  by (metis inf_sup_ord(1) locs_safe_disj locs_safe_subset_same option.inject)
+  by (metis inf_sup_ord(1) range_safe_disj range_safe_subset_same option.inject)
 
-lemma locs_safe_prefix:
+lemma range_safe_prefix:
   assumes "prefix m m'"
-      and "locs_safe s m l = Some L"
-    shows "locs_safe s m' l = Some L"
+      and "range_safe s m l = Some L"
+    shows "range_safe s m' l = Some L"
   using assms
-proof (induction s m' l arbitrary: L rule: locs_safe.induct)
+proof (induction s m' l arbitrary: L rule: range_safe.induct)
   case (1 s' m' l)
 
   from 1(3) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case *: (1 v)
     then have "m' $ l = Some (mdata.Value v)" using 1(2) unfolding prefix_def nth_safe_def
       by (simp split:if_split_asm add: nth_append)
@@ -1366,8 +1366,8 @@ proof (induction s m' l arbitrary: L rule: locs_safe.induct)
     then have m'_l: "m' $ l = Some (mdata.Array xs)" using 1(2) unfolding prefix_def nth_safe_def
       by (simp split:if_split_asm add: nth_append)
     moreover have
-      "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
-      = fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s') m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
+      "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})
+      = fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s') m' x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l|})"
       (is "fold (?P m) xs (Some {|l|}) = fold (?P m') xs (Some {|l|})")
     proof (rule take_all1)
       show "\<forall>n\<le>length xs. fold (?P m) (take n xs) (Some {|l|}) = fold (?P m') (take n xs) (Some {|l|})"
@@ -1383,19 +1383,19 @@ proof (induction s m' l arbitrary: L rule: locs_safe.induct)
           from Suc(2) have "n < length xs" by auto
           moreover from 2(3) obtain x
             where *: "fold (?P m) (take n xs) (Some {|l|}) \<bind>
-              (\<lambda>y'. locs_safe (finsert l s') m (xs ! n) \<bind> (\<lambda>l. Some (l |\<union>| y'))) = Some x"
+              (\<lambda>y'. range_safe (finsert l s') m (xs ! n) \<bind> (\<lambda>l. Some (l |\<union>| y'))) = Some x"
             using fold_some_take_some[OF _ \<open>n < length xs\<close>] by metis
           moreover have "?P m' (xs ! n) (fold (?P m') (take n xs) (Some {|l|})) = Some x"
           proof -
-            from * obtain x' y' where **: "locs_safe (finsert l s') m (xs ! n) = Some x'"
+            from * obtain x' y' where **: "range_safe (finsert l s') m (xs ! n) = Some x'"
               and ***: "(fold (?P m) (take n xs) (Some {|l|})) = Some y'"
               and ****: "x = (x' |\<union>| y')"
-              apply (cases "locs_safe (finsert l s') m (xs ! n)")
-              apply (auto simp del: locs_safe.simps)
+              apply (cases "range_safe (finsert l s') m (xs ! n)")
+              apply (auto simp del: range_safe.simps)
               apply (cases "fold (?P m) (take n xs) (Some {|l|})")
-              by (auto simp del: locs_safe.simps)
+              by (auto simp del: range_safe.simps)
             moreover from 1(1)[OF 2(1) m'_l _ _ 1(2), of "(xs ! n)"]
-            have "locs_safe (finsert l s') m' (xs ! n) = Some x'"
+            have "range_safe (finsert l s') m' (xs ! n) = Some x'"
              and "(fold (?P m') (take n xs) (Some {|l|})) = Some y'"
              using ** *** nth_mem Suc.IH \<open>n < length xs\<close> by auto
             ultimately show ?thesis by simp
@@ -1411,8 +1411,8 @@ proof (induction s m' l arbitrary: L rule: locs_safe.induct)
   qed
 qed
 
-lemma locs_safe_locations:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_locations:
+  assumes "range_safe s m l = Some L"
       and "locations m xs l = Some L'"
     shows "L' |\<subseteq>| L"
   using assms
@@ -1429,28 +1429,28 @@ next
     and l4: "L' = (finsert l L'')"
     using locations_obtain[OF Cons(3)] by blast
   then have *:
-    "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) as (Some {|l|})
+    "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) as (Some {|l|})
     = Some L"
-    using locs_safe_obtains[OF Cons(2)] by fastforce
+    using range_safe_obtains[OF Cons(2)] by fastforce
   moreover from l2 have "l' \<in> set as" unfolding nth_safe_def by (auto split:if_split_asm)
-  ultimately obtain L0 where **: "locs_safe (finsert l s) m l' = Some L0" and "L0 |\<subseteq>| L"
+  ultimately obtain L0 where **: "range_safe (finsert l s) m l' = Some L0" and "L0 |\<subseteq>| L"
     using fold_some_subs by metis
   moreover from * have "l |\<in>| L" using fold_some[OF *] by simp
   moreover have "L'' |\<subseteq>| L0" by (rule Cons(1)[OF ** l3])
   ultimately show ?case using l4 by simp
 qed
 
-lemma locs_safe_l_in_L:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_l_in_L:
+  assumes "range_safe s m l = Some L"
       and "x |\<in>| L"
       and "m $ x = Some (mdata.Array xs)"
       and "l' \<in> set xs"
     shows "l' |\<in>| L"
-  by (smt (verit, del_insts) antisym_conv2 assms(1,2,3,4) locs_safe_in_subs locs_safe_obtains_subset locs_safe_subs pfsubsetD)
+  by (smt (verit, del_insts) antisym_conv2 assms(1,2,3,4) range_safe_in_subs range_safe_obtains_subset range_safe_subs pfsubsetD)
 
-lemma locs_marray_lookup:
+lemma range_safe_marray_lookup:
   assumes "xs \<noteq> []"
-      and "locs_safe s m l = Some L"
+      and "range_safe s m l = Some L"
       and "marray_lookup m xs l = Some (l', ys, i)"
       and "ys $ i = Some l''"
     shows "l'' |\<in>| L"
@@ -1463,15 +1463,15 @@ proof (induction "xs" arbitrary: l L s rule: list_nonempty_induct)
       and 0: "(l', ys, i) = (l, ms, i'')"
     using marray_lookup_obtain_single by blast
   then have
-    *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ms (Some {|l|})
+    *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ms (Some {|l|})
     = Some L"
-    using locs_safe_obtains[OF single(1)] by fastforce
+    using range_safe_obtains[OF single(1)] by fastforce
   moreover from single(3) 0 have "l'' \<in> set ms" unfolding nth_safe_def by (auto split:if_split_asm)
   ultimately obtain L0
-    where **: "locs_safe (finsert l s) m l'' = Some L0"
+    where **: "range_safe (finsert l s) m l'' = Some L0"
       and "L0 |\<subseteq>| L"
     using fold_some_subs by metis
-  moreover have "l'' |\<in>| L0" using locs_safe_subs[OF **] by simp
+  moreover have "l'' |\<in>| L0" using range_safe_subs[OF **] by simp
   ultimately show ?case by auto
 next
   case (cons x xs)
@@ -1486,25 +1486,25 @@ next
       and l4: "marray_lookup m xs l''' = Some (l', ys, i)"
     using marray_lookup_obtain_multi xs_def by blast
   then have
-    *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ms (Some {|l|})
+    *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ms (Some {|l|})
     = Some L"
-    using locs_safe_obtains[OF cons(3)] by fastforce
+    using range_safe_obtains[OF cons(3)] by fastforce
   moreover from cons l3 have "l''' \<in> set ms" unfolding nth_safe_def by (auto split:if_split_asm)
   ultimately obtain L0
-    where **: "locs_safe (finsert l s) m l''' = Some L0"
+    where **: "range_safe (finsert l s) m l''' = Some L0"
       and "L0 |\<subseteq>| L"
     using fold_some_subs by metis
   moreover have "l'' |\<in>| L0" by (rule cons.IH[OF ** l4 cons(5)])
   ultimately show ?case by auto
 qed
 
-lemma locs_safe_mlookup:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_mlookup:
+  assumes "range_safe s m l = Some L"
       and "mlookup m xs l = Some l'"
     shows "l' |\<in>| L"
 proof (cases xs)
   case Nil
-  then show ?thesis using assms locs_safe_subs
+  then show ?thesis using assms range_safe_subs
     using mlookup_obtain_empty by blast
 next
   case (Cons x xs)
@@ -1513,20 +1513,20 @@ next
     and "xs' $ i = Some i'"
     and "l' = i'"
     using mlookup_obtain_nempty1 assms(2) by blast
-  then show ?thesis using locs_marray_lookup[of "x # xs"]
+  then show ?thesis using range_safe_marray_lookup[of "x # xs"]
     by (metis assms(1) list.distinct(1))
 qed
 
-lemma mlookup_locs_subs:
+lemma mlookup_range_safe_subs:
   assumes "mlookup m is l = Some l'"
-      and "locs_safe s m l' = Some L"
-      and "locs_safe s' m l = Some L'"
+      and "range_safe s m l' = Some L"
+      and "range_safe s' m l = Some L'"
     shows "L |\<subseteq>| L'"
   using assms
 proof (induction "is" arbitrary: l L')
   case Nil
   then show ?case
-    by (metis fempty_fsubsetI fset_eq_fsubset locs_safe_subset_same mlookup_obtain_empty option.inject)
+    by (metis fempty_fsubsetI fset_eq_fsubset range_safe_subset_same mlookup_obtain_empty option.inject)
 next
   case (Cons i "is")
   then obtain ls i' l''
@@ -1535,30 +1535,30 @@ next
       and l''_def: "ls $ i' = Some l''"
       and "mlookup m is l'' = Some l'"
     using mlookup_obtain_nempty2[OF Cons(2)] by blast
-  moreover obtain L'' where "locs_safe s' m l'' = Some L''" and "L'' |\<subseteq>| L'"
+  moreover obtain L'' where "range_safe s' m l'' = Some L''" and "L'' |\<subseteq>| L'"
   proof -
     from Cons(4) have
-      *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|})
+      *: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s') m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|})
       = Some L'"
-      using locs_safe_obtains ls_def by fastforce
+      using range_safe_obtains ls_def by fastforce
     then obtain L''
-      where "locs_safe (finsert l s') m l'' = Some L'' \<and> L'' |\<subseteq>| L'"
+      where "range_safe (finsert l s') m l'' = Some L'' \<and> L'' |\<subseteq>| L'"
       using fold_some_subs[OF *] l''_def nth_in_set by metis
-    then show ?thesis using locs_safe_subset_same[of "finsert l s'"] that[of L''] by blast
+    then show ?thesis using range_safe_subset_same[of "finsert l s'"] that[of L''] by blast
   qed
   ultimately show ?case using Cons(1)[OF _ Cons(3)] by blast
 qed
 
-lemma mlookup_locs_some:
+lemma mlookup_range_safe_some:
   assumes "mlookup m is l = Some l'"
-      and "locs_safe s m l = Some L"
+      and "range_safe s m l = Some L"
     shows "\<exists>x. m $l' = Some x"
   using assms
 proof (induction "is" arbitrary: l L)
   case Nil
-  then have "locs_safe s m l = Some L" by simp
+  then have "range_safe s m l = Some L" by simp
   then show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case (1 v)
     then show ?thesis using Nil by simp
   next
@@ -1571,22 +1571,22 @@ next
   proof (cases rule:mlookup_obtain_nempty2)
     case (1 ls i' l'')
     with Cons(3) have
-      "(fold (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|}))
+      "(fold (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|}))
       = Some L"
       by (simp add:case_memory_def split: if_split_asm) 
     moreover have "l'' \<in> set ls" using 1 nth_in_set by fast
-    ultimately obtain L' where "locs_safe (finsert l s) m l'' = Some L'" and "L' |\<subseteq>| L"
-      using fold_some_subs[of "locs_safe (finsert l s) m" ls "Some {|l|}" L] using 1 by blast
-    then have "locs_safe s m l'' = Some L'" unfolding locs_safe_prefix
-      using locs_safe_subset_same by blast
+    ultimately obtain L' where "range_safe (finsert l s) m l'' = Some L'" and "L' |\<subseteq>| L"
+      using fold_some_subs[of "range_safe (finsert l s) m" ls "Some {|l|}" L] using 1 by blast
+    then have "range_safe s m l'' = Some L'" unfolding range_safe_prefix
+      using range_safe_subset_same by blast
     then show ?thesis using Cons(1)[of l''] 1 by simp
   qed
 qed
 
 lemma noloops:
   assumes "mlookup m (i # is) l = Some l'"
-      and "locs_safe s m l = Some L"
-      and "locs_safe s m l' = Some L'"
+      and "range_safe s m l = Some L"
+      and "range_safe s m l' = Some L'"
     shows "l |\<notin>| L'"
 proof (rule ccontr)
   assume "\<not> l |\<notin>| L'"
@@ -1595,9 +1595,9 @@ proof (rule ccontr)
     where ls_def: "m$l = Some (mdata.Array ls)"
     by (meson locations_obtain mlookup_locations_some)
   then have
-    L_def: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+    L_def: "fold (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
       ls (Some {|l|}) = Some L"
-  using locs_safe_obtains[OF assms(2)] by auto
+  using range_safe_obtains[OF assms(2)] by auto
 
   from ls_def obtain i' l''
     where l''_def: "ls $ i' = Some l''"
@@ -1605,50 +1605,50 @@ proof (rule ccontr)
     using mlookup_obtain_nempty2[OF assms(1)] by (metis mdata.inject(2) option.inject)
   moreover from l''_def have "l'' \<in> set ls" unfolding nth_safe_def by (auto split:if_split_asm)
   then obtain L''
-    where L''_def: "locs_safe (finsert l s) m l'' = Some L''"
+    where L''_def: "range_safe (finsert l s) m l'' = Some L''"
     using fold_some_subs[OF L_def] by blast
-  then have "locs_safe s m l'' = Some L''"
-    using locs_safe_subset_same [of "finsert l s" m l'' L'']
+  then have "range_safe s m l'' = Some L''"
+    using range_safe_subset_same [of "finsert l s" m l'' L'']
     by blast
-  ultimately have "L' |\<subseteq>| L''" using mlookup_locs_subs[OF _ assms(3)] by simp
-  moreover have "l |\<notin>| L''" using locs_safe_disj L''_def by blast
+  ultimately have "L' |\<subseteq>| L''" using mlookup_range_safe_subs[OF _ assms(3)] by simp
+  moreover have "l |\<notin>| L''" using range_safe_disj L''_def by blast
   ultimately show False using `\<not> l |\<notin>| L'` by auto
 qed
 
-definition "locs = locs_safe {||}"
+definition range where "range \<equiv> range_safe {||}"
 
-lemma locs_subs:
-  assumes "locs m l = Some X"
+lemma range_subs:
+  assumes "range m l = Some X"
   shows "l |\<in>| X"
-  using assms locs_safe_subs locs_def by metis
+  using assms range_safe_subs range_def by metis
 
-lemma locs_subs2:
-  assumes "locs m l = Some X"
+lemma range_subs2:
+  assumes "range m l = Some X"
   shows "fset X \<subseteq> loc m"
-  using assms locs_def locs_safe_subs2 by metis
+  using assms range_def range_safe_subs2 by metis
 
-lemma locs_same:
-  assumes "locs m l = Some L"
+lemma range_same:
+  assumes "range m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
-    shows "locs m' l = Some L"
-  using assms locs_def locs_safe_same by metis
+    shows "range m' l = Some L"
+  using assms range_def range_safe_same by metis
 
-lemma locs_prefix:
+lemma range_prefix:
   assumes "prefix m m'"
-    and "locs m l = Some L"
-  shows "locs m' l = Some L"
-  using assms locs_safe_prefix
-  by (metis locs_def)
+    and "range m l = Some L"
+  shows "range m' l = Some L"
+  using assms range_safe_prefix
+  by (metis range_def)
 
-lemma locs_safe_mlookup_locs:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_mlookup_range:
+  assumes "range_safe s m l = Some L"
     and "mlookup m xs l = Some l'"
-  shows "\<exists>L'. locs m l' = Some L' \<and> L' |\<subseteq>| L"
+  shows "\<exists>L'. range m l' = Some L' \<and> L' |\<subseteq>| L"
   using assms
 proof (induction xs arbitrary: l L s)
   case Nil
   then show ?case
-    by (metis bot.extremum locs_def locs_safe_subset_same mlookup.simps(1) option.inject order_refl)
+    by (metis bot.extremum range_def range_safe_subset_same mlookup.simps(1) option.inject order_refl)
 next
   case (Cons a xs)
   then obtain ls i' l''
@@ -1658,35 +1658,35 @@ next
       and "mlookup m xs l'' = Some l'"
     using mlookup_obtain_nempty2 by blast
   moreover from Cons(2) have
-    "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|})
+    "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l|})
     = Some L"
-    using locs_safe_obtains[OF Cons(2)] * ** *** by auto
+    using range_safe_obtains[OF Cons(2)] * ** *** by auto
   then obtain L''
-    where "locs_safe (finsert l s) m l'' = Some L''"
+    where "range_safe (finsert l s) m l'' = Some L''"
       and "L'' |\<subseteq>| L"
-    using fold_some_subs[of "locs_safe (finsert l s) m" ls "(Some {|l|})" L l''] *** 
+    using fold_some_subs[of "range_safe (finsert l s) m" ls "(Some {|l|})" L l''] *** 
     by (meson nth_in_set)
   ultimately show ?case using Cons(1) by blast
 qed
 
-lemma locs_locations:
-  assumes "locs m l = Some L"
+lemma range_locations:
+  assumes "range m l = Some L"
       and "locations m xs l = Some L'"
     shows "L' |\<subseteq>| L"
-  using assms locs_safe_locations
-  by (metis locs_def)
+  using assms range_safe_locations
+  by (metis range_def)
 
-lemma locs_safe_in_locs:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_in_range:
+  assumes "range_safe s m l = Some L"
       and "l' |\<in>| L"
       and "m $ l' = Some (mdata.Array xs)"
       and "xs $ i = Some i'"
-    shows "\<exists>L'. locs m i' = Some L' \<and> L' |\<subseteq>| L"
+    shows "\<exists>L'. range m i' = Some L' \<and> L' |\<subseteq>| L"
   using assms
-proof (induction arbitrary: L rule:locs_safe.induct[where ?a0.0 = s and ?a1.0 = m and ?a2.0 = l])
+proof (induction arbitrary: L rule:range_safe.induct[where ?a0.0 = s and ?a1.0 = m and ?a2.0 = l])
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule: locs_safe_obtains)
+  proof (cases rule: range_safe_obtains)
     case (1 v)
     then show ?thesis
       using "1.prems"(2,3) by auto
@@ -1696,9 +1696,9 @@ proof (induction arbitrary: L rule:locs_safe.induct[where ?a0.0 = s and ?a1.0 = 
        (eq) "l' = l"
       | (2) i L'
       where "i < length xs"
-        and "locs_safe (finsert l s) m (xs ! i) = Some L'"
+        and "range_safe (finsert l s) m (xs ! i) = Some L'"
         and "l' |\<in>| L'"
-      using fold_union_in[of "locs_safe (finsert l s) m" xs "{|l|}" L l'] 1(3)
+      using fold_union_in[of "range_safe (finsert l s) m" xs "{|l|}" L l'] 1(3)
       by blast
     then show ?thesis
     proof (cases)
@@ -1706,11 +1706,11 @@ proof (induction arbitrary: L rule:locs_safe.induct[where ?a0.0 = s and ?a1.0 = 
       then have "xs $ i = Some i'" using 1 2 by simp
       then have "i' \<in> set xs" using nth_in_set by fast
       then obtain A
-        where "locs_safe (finsert l s) m i' = Some A"
+        where "range_safe (finsert l s) m i' = Some A"
           and "A |\<subseteq>| L"
-        using 2(3) fold_some_subs[of "locs_safe (finsert l s) m"] by blast
+        using 2(3) fold_some_subs[of "range_safe (finsert l s) m"] by blast
       then show ?thesis
-        by (metis locs_def locs_safe_subset_same fempty_fsubsetI)
+        by (metis range_def range_safe_subset_same fempty_fsubsetI)
     next
       case 22: 2
       have "xs!i \<in> set xs" using 22 by simp
@@ -1720,39 +1720,39 @@ proof (induction arbitrary: L rule:locs_safe.induct[where ?a0.0 = s and ?a1.0 = 
   qed
 qed
 
-lemma locs_safe_prefix_in_locs:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_prefix_in_range:
+  assumes "range_safe s m l = Some L"
       and "l' |\<in>| L"
       and "m $ l' = Some (mdata.Array xs)"
       and "xs $ i = Some i'"
       and "prefix m m'"
-      and "locs m' i' = Some L'"
-  shows "locs m i' = Some L'"
+      and "range m' i' = Some L'"
+  shows "range m i' = Some L'"
 proof -
-  from assms obtain L' where "locs m i' = Some L'" using locs_safe_in_locs by blast
+  from assms obtain L' where "range m i' = Some L'" using range_safe_in_range by blast
   then show ?thesis using assms(5,6)
-    by (metis locs_prefix)
+    by (metis range_prefix)
 qed
 
-lemma locs_mlookup:
-  assumes "locs m l = Some L"
+lemma range_mlookup:
+  assumes "range m l = Some L"
       and "mlookup m xs l = Some l'"
     shows "l' |\<in>| L"
-  using assms locs_safe_mlookup
-  by (metis locs_def)
+  using assms range_safe_mlookup
+  by (metis range_def)
 
-lemma mupdate_locs_subset:
-  assumes "locs m l = Some (the (locs m l))"
+lemma mupdate_range_subset:
+  assumes "range m l = Some (the (range m l))"
       and "m' = m[l':= mdata.Value v]"
       and "l' < length m"
-    shows "\<exists>L. locs m' l = Some L \<and> L |\<subseteq>| the (locs m l)"
+    shows "\<exists>L. range m' l = Some L \<and> L |\<subseteq>| the (range m l)"
 proof -
   have
-    "\<forall>l'|\<in>|the (locs_safe {||} m l).
+    "\<forall>l'|\<in>|the (range_safe {||} m l).
       (\<exists>xs. m' $ l' = Some (mdata.Array xs) \<and> m $ l' = Some (mdata.Array xs))
       \<or> (\<exists>xs. m' $ l' = Some (mdata.Value xs))"
   proof rule
-    fix l'' assume *: "l'' |\<in>| the (locs_safe {||} m l)"
+    fix l'' assume *: "l'' |\<in>| the (range_safe {||} m l)"
     show
       "(\<exists>xs. m' $ l'' = Some (mdata.Array xs) \<and> m $ l'' = Some (mdata.Array xs))
       \<or> (\<exists>xs. m' $ l'' = Some (mdata.Value xs))"
@@ -1762,13 +1762,13 @@ proof -
     next
       case False
       then show ?thesis
-        using assms(1,2) locs_safe_subs2[of "{||}" m l "(the (locs_safe {||} m l))"] *
-        by (auto intro: mdata.exhaust simp add:nth_safe_def locs_def loc_def)
+        using assms(1,2) range_safe_subs2[of "{||}" m l "(the (range_safe {||} m l))"] *
+        by (auto intro: mdata.exhaust simp add:nth_safe_def range_def loc_def)
     qed
   qed
   then show ?thesis
-    using assms(1) locs_safe_subs3[of "{||}" m l "(the (locs_safe {||} m l))" m']
-    by (simp add: locs_def)
+    using assms(1) range_safe_subs3[of "{||}" m l "(the (range_safe {||} m l))" m']
+    by (simp add: range_def)
 qed
 
 section \<open>Copy from Memory\<close>
@@ -2066,21 +2066,21 @@ lemma read_append:
 
 section \<open>Copy Memory and Memory Locations\<close>
 
-lemma locs_safe_read_safe:
-  assumes "locs_safe s m l = Some L"
+lemma range_safe_read_safe:
+  assumes "range_safe s m l = Some L"
     shows "\<exists>x. read_safe s m l = Some x"
   using assms
-proof (induction arbitrary: L rule:locs_safe.induct)
+proof (induction arbitrary: L rule:range_safe.induct)
   case (1 s m l)
   from 1(2) show ?case
-  proof (cases rule:locs_safe_obtains)
+  proof (cases rule:range_safe_obtains)
     case (1 v)
     then show ?thesis by (auto simp add:case_memory_def)
   next
     case (2 xs)
     moreover have "\<exists>x. those (map (read_safe (finsert l s) m) xs) \<bind> Some \<circ> Array = Some x"
     proof -
-      from 2(3) have "\<forall>x \<in> set xs. \<exists>y. locs_safe (finsert l s) m x = Some y"
+      from 2(3) have "\<forall>x \<in> set xs. \<exists>y. range_safe (finsert l s) m x = Some y"
         by (metis fold_some_subs)
       then have "\<forall>x \<in> set xs. \<exists>y. read_safe (finsert l s) m x = Some y"
         using 1(1)[OF 2(1,2)] by blast
@@ -2092,9 +2092,9 @@ proof (induction arbitrary: L rule:locs_safe.induct)
   qed
 qed
 
-lemma read_safe_locs_safe:
+lemma read_safe_range_safe:
   assumes "read_safe s m l = Some cd"
-      and "locs_safe s m l = Some L"
+      and "range_safe s m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
     shows "read_safe s m' l = Some cd"
   using assms
@@ -2108,7 +2108,7 @@ proof (induction arbitrary: cd L rule: read_safe.induct)
     case (array v as)
     moreover have "l|\<in>|L" using 1(3)
       apply (auto simp add:case_memory_def)
-      using "1.prems"(2) data.locs_safe_subs by blast
+      using "1.prems"(2) data.range_safe_subs by blast
     then have *: "m' $ l = Some (mdata.Array v)" using array(2) 1(4) by simp
     moreover have "those (map (read_safe (finsert l s) m') v)
                   = those (map (read_safe (finsert l s) m) v)"
@@ -2123,12 +2123,12 @@ proof (induction arbitrary: cd L rule: read_safe.induct)
           by (meson `x \<in> set v` not_None_eq those_map_none)
         moreover from array have
           **: "fold
-                (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                 v
                 (Some {|l|})
               = Some L"
-          using locs_safe_obtains[OF 1(3)] by auto
-        then obtain L' where "locs_safe (finsert l s) m x = Some L'" and "L' |\<subseteq>| L"
+          using range_safe_obtains[OF 1(3)] by auto
+        then obtain L' where "range_safe (finsert l s) m x = Some L'" and "L' |\<subseteq>| L"
           using fold_some_subs[OF **] `x \<in> set v` by auto
         moreover from `L' |\<subseteq>| L` have "\<forall>l'|\<in>|L'. m' $ l' = m $ l'" using 1(4) by blast
         ultimately show "read_safe (finsert l s) m' x = read_safe (finsert l s) m x"
@@ -2141,24 +2141,24 @@ proof (induction arbitrary: cd L rule: read_safe.induct)
   qed
 qed
 
-lemma read_locs:
+lemma read_range:
   assumes "read m l = Some cd"
-      and "locs m l = Some L"
+      and "range m l = Some L"
       and "\<forall>l'|\<in>|L. m' $ l' = m $ l'"
     shows "read m' l = Some cd"
-  using assms read_safe_locs_safe unfolding read_def locs_def by blast
+  using assms read_safe_range_safe unfolding read_def range_def by blast
 
-lemma read_safe_locs_safe_same:
+lemma read_safe_range_safe_same:
   assumes "read_safe s m1 l = Some x"
-      and "locs_safe s m1 l = Some L"
+      and "range_safe s m1 l = Some L"
       and "\<forall>l |\<in>| s' - s. l |\<notin>| L"
   shows "read_safe s' m1 l = Some x"
-  using locs_safe_nin_same[OF assms(2,3)] assms(1)
-  by (metis read_some_same locs_safe_read_safe)
+  using range_safe_nin_same[OF assms(2,3)] assms(1)
+  by (metis read_some_same range_safe_read_safe)
 
-lemma locs_read_some:
+lemma range_read_some:
   assumes "read_safe s m0 l0 = Some cd0"
-    shows "\<exists>L. locs_safe s m0 l0 = Some L"
+    shows "\<exists>L. range_safe s m0 l0 = Some L"
   using assms
 proof (induction arbitrary: cd0 rule:read_safe.induct)
   case (1 s m l)
@@ -2168,53 +2168,53 @@ proof (induction arbitrary: cd0 rule:read_safe.induct)
     then show ?thesis by (auto simp add:case_memory_def)
   next
     case (array xs as)
-    moreover have "\<forall>x \<in> set xs. \<exists>L. locs_safe (finsert l s) m x = Some L"
+    moreover have "\<forall>x \<in> set xs. \<exists>L. range_safe (finsert l s) m x = Some L"
     proof
       fix x
       assume "x \<in> set xs"
       moreover obtain cd where "read_safe (finsert l s) m x = Some cd"
         by (meson array(3) calculation set_nth_some those_map_some_nth)
-      ultimately show "\<exists>L. locs_safe (finsert l s) m x = Some L" using 1(1)
+      ultimately show "\<exists>L. range_safe (finsert l s) m x = Some L" using 1(1)
         by (meson array(1,2))
     qed
     ultimately have
       "fold
-        (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+        (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l s) m x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
         xs
         (Some {|l|})
       \<noteq> None"
-      using fold_f_set_some[of _ "locs_safe (finsert l s) m"] by simp
+      using fold_f_set_some[of _ "range_safe (finsert l s) m"] by simp
     then show ?thesis using array by (simp add: case_memory_def)
   qed
 qed
 
-lemma read_safe_locs_safe_subs:
+lemma read_safe_range_safe_subs:
  assumes "m $ l1' = Some (mdata.Array ls)"
     and "l2 \<in> set ls"
     and "mlookup m is2 l1 = Some l1'"
-    and "locs_safe s m l1 = Some L1"
+    and "range_safe s m l1 = Some L1"
     and "read_safe s m l1 = Some cd"
-  shows "\<exists>x y. read_safe s m l2 = Some x \<and> locs_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
+  shows "\<exists>x y. read_safe s m l2 = Some x \<and> range_safe s m l2 = Some y \<and> y |\<subseteq>| L1"
 proof -
-  from assms(3,4) have "l1' |\<in>| L1" using locs_safe_mlookup by blast
+  from assms(3,4) have "l1' |\<in>| L1" using range_safe_mlookup by blast
   then obtain L1'
-    where *: "locs_safe s m l1' = Some L1'"
+    where *: "range_safe s m l1' = Some L1'"
       and "L1' |\<subseteq>| L1"
-    using locs_safe_in_subs[OF assms(4), of l1'] by auto
+    using range_safe_in_subs[OF assms(4), of l1'] by auto
   moreover from * have
     "fold
-      (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1' s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+      (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1' s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
       ls
       (Some {|l1'|})
     = Some L1'"
   using assms(1,2) by (auto simp add:case_memory_def split:if_split_asm)
   then obtain LL
-    where "locs_safe (finsert l1' s) m l2 = Some LL"
+    where "range_safe (finsert l1' s) m l2 = Some LL"
     and "LL |\<subseteq>| L1'"
-  using fold_some_subs[of "locs_safe (finsert l1' s) m" ls "Some {|l1'|}" L1'] assms(2) by blast
-  then have "locs_safe s m l2 = Some LL"
-    using locs_safe_subset_same by blast
-  ultimately show ?thesis using locs_safe_read_safe[of s m l2 LL] `LL |\<subseteq>| L1'` by auto
+  using fold_some_subs[of "range_safe (finsert l1' s) m" ls "Some {|l1'|}" L1'] assms(2) by blast
+  then have "range_safe s m l2 = Some LL"
+    using range_safe_subset_same by blast
+  ultimately show ?thesis using range_safe_read_safe[of s m l2 LL] `LL |\<subseteq>| L1'` by auto
 qed
 
 section \<open>Separation Check\<close>
@@ -2223,7 +2223,7 @@ definition disjoined:: "'v memory \<Rightarrow> location fset \<Rightarrow> bool
   "disjoined m L \<equiv>
     \<forall>x |\<in>| L. \<forall>xs. m$x = Some (mdata.Array xs)
     \<longrightarrow> (\<forall>i j i' j' L L'.
-          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m i' = Some L \<and> locs m j' = Some L'
+          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> range m i' = Some L \<and> range m j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})"
 
 lemma disjoined_subs[intro]:
@@ -2234,7 +2234,7 @@ lemma disjoined_subs[intro]:
 
 lemma disjoined_disjoined:
   assumes "disjoined m L"
-      and "locs m l = Some L"
+      and "range m l = Some L"
       and "\<forall>l |\<in>| L. m $ l = m' $ l"
     shows "disjoined m' L"
   unfolding disjoined_def
@@ -2245,18 +2245,18 @@ proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
     and ***: "i \<noteq> j
               \<and> xs $ i = Some i'
               \<and> xs $ j = Some j'
-              \<and> locs m' i' = Some La
-              \<and> locs m' j' = Some L'"
+              \<and> range m' i' = Some La
+              \<and> range m' j' = Some L'"
   moreover from * ** have "m $ x = Some (mdata.Array xs)" using assms(3) by auto
-  moreover from assms(2) have "La |\<subseteq>| L" using locs_safe_in_locs[OF _ * **, of "{||}" l i i']
-    unfolding locs_def using ***
-    by (metis assms(3) locs_def locs_same option.inject)
-  with *** have "locs m i' = Some La" using locs_same[of m' i' La m]
+  moreover from assms(2) have "La |\<subseteq>| L" using range_safe_in_range[OF _ * **, of "{||}" l i i']
+    unfolding range_def using ***
+    by (metis assms(3) range_def range_same option.inject)
+  with *** have "range m i' = Some La" using range_same[of m' i' La m]
     using assms(3) by auto
-  moreover from assms(2) have "L' |\<subseteq>| L" using locs_safe_in_locs[OF _ * **, of "{||}" l j j']
-    unfolding locs_def using ***
-    by (metis assms(3) locs_def locs_same option.inject)
-  with *** have "locs m j' = Some L'" using locs_same[of m' j' L' m]
+  moreover from assms(2) have "L' |\<subseteq>| L" using range_safe_in_range[OF _ * **, of "{||}" l j j']
+    unfolding range_def using ***
+    by (metis assms(3) range_def range_same option.inject)
+  with *** have "range m j' = Some L'" using range_same[of m' j' L' m]
     using assms(3) by auto
   ultimately show "La |\<inter>| L' = {||}" using assms(1) unfolding disjoined_def by blast
 qed
@@ -2265,7 +2265,7 @@ lemma disjoined_prefix:
   assumes "fset L \<subseteq> loc m"
       and "prefix m m'"
       and "disjoined m L"
-      and "locs_safe s m' l = Some L"
+      and "range_safe s m' l = Some L"
     shows "disjoined m' L"
   unfolding disjoined_def
 proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
@@ -2275,28 +2275,28 @@ proof (rule,rule,rule,rule,rule,rule,rule,rule,rule,rule)
     and ***: "i \<noteq> j
               \<and> xs $ i = Some i'
               \<and> xs $ j = Some j'
-              \<and> locs m' i' = Some La
-              \<and> locs m' j' = Some L'"
+              \<and> range m' i' = Some La
+              \<and> range m' j' = Some L'"
   moreover from * ** assms(1,2) have "m $ x = Some (mdata.Array xs)"
     unfolding prefix_def nth_safe_def loc_def by (auto split: if_split_asm simp add: nth_append_left)
-  moreover have "La |\<subseteq>| L" using locs_safe_in_locs[OF assms(4) * **] *** by fastforce
+  moreover have "La |\<subseteq>| L" using range_safe_in_range[OF assms(4) * **] *** by fastforce
   then have "\<forall>l'|\<in>|La. m $ l' = m' $ l'"
     using assms(1,2) unfolding prefix_def loc_def nth_safe_def by (auto simp add: nth_append_left)
-  then have "locs m i' = Some La" using locs_same[of m' i' La m] using calculation(3) by auto
-  moreover have "L' |\<subseteq>| L" using locs_safe_in_locs[OF assms(4) * **] *** by fastforce
+  then have "range m i' = Some La" using range_same[of m' i' La m] using calculation(3) by auto
+  moreover have "L' |\<subseteq>| L" using range_safe_in_range[OF assms(4) * **] *** by fastforce
   then have "\<forall>l'|\<in>|L'. m $ l' = m' $ l'" using assms(1,2)
     unfolding prefix_def loc_def nth_safe_def by (auto simp add: nth_append_left)
-  then have "locs m j' = Some L'" using locs_same[of m' j' L' m] using calculation(3) by auto
-  moreover have "locs m j' = Some L'" using locs_same[of m' j' L' m] using calculation(6) by auto
+  then have "range m j' = Some L'" using range_same[of m' j' L' m] using calculation(3) by auto
+  moreover have "range m j' = Some L'" using range_same[of m' j' L' m] using calculation(6) by auto
   ultimately show "La |\<inter>| L' = {||}" using assms(3) unfolding disjoined_def by (meson  \<open>x |\<in>| L\<close>)
 qed
 
 lemma update_some:
 "\<forall>is1 L1 cd1 L3. mlookup m0 is1 l1 = Some l1' \<and>
       m1 $ l1' = m0 $ l2 \<and>
-      locs_safe s m0 l1 = Some L1 \<and>
-      locs_safe s m0 l1' = Some L1' \<and>
-      locs_safe s2 m0 l2 = Some L2 \<and>
+      range_safe s m0 l1 = Some L1 \<and>
+      range_safe s m0 l1' = Some L1' \<and>
+      range_safe s2 m0 l2 = Some L2 \<and>
       (\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l) \<and>
       (\<forall>l |\<in>| L2. m1 $ l = m0 $ l) \<and>
       read_safe s m0 l1 = Some cd1 \<and>
@@ -2314,9 +2314,9 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
     fix is1 L1 cd1 L3
     assume 1: "mlookup m0 is1 l1 = Some l1'"
        and 3: "m1 $ l1' = m0 $ l2"
-       and 4: "locs_safe s m0 l1 = Some L1"
-       and 5: "locs_safe s m0 l1' = Some L1'"
-       and 6: "locs_safe s2 m0 l2 = Some L2"
+       and 4: "range_safe s m0 l1 = Some L1"
+       and 5: "range_safe s m0 l1' = Some L1'"
+       and 6: "range_safe s2 m0 l2 = Some L2"
        and 7: "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
        and 8: "\<forall>l|\<in>|L2. m1 $ l = m0 $ l"
        and 9: "read_safe s m0 l1 = Some cd1"
@@ -2341,7 +2341,7 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
         then obtain iv is1' where "is1=iv#is1'"
           using list.exhaust by auto
 
-        have "l1 |\<in>| L1" using 4 using locs_safe_subs by blast
+        have "l1 |\<in>| L1" using 4 using range_safe_subs by blast
         moreover have "l1 |\<notin>| L1'"
           using 1 `is1=iv#is1'` noloops[of m0 iv is1' l1 l1' s L1 L1'] 4 5 by simp
         ultimately have "m1$l1 = m0$l1" using 7 by blast
@@ -2366,15 +2366,15 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
             then have "m0$l2 = Some (mdata.Array ls)" using Some Array by simp
             then obtain x y
               where "read_safe s2 m0 l = Some x"
-                and "locs_safe s2 m0 l = Some y"
+                and "range_safe s2 m0 l = Some y"
                 and "y |\<subseteq>| L2"
-              using \<open>l \<in> set ls\<close> 6 10 read_safe_locs_safe_subs mlookup.simps(1) by blast
-            then have "read_safe s2 m1 l = Some x" and "locs_safe s2 m1 l = Some y"
-              using 8 read_safe_locs_safe[of s2 m0 l x y m1]
-                locs_safe_same[of s2 m0 l y m1] by blast+  
+              using \<open>l \<in> set ls\<close> 6 10 read_safe_range_safe_subs mlookup.simps(1) by blast
+            then have "read_safe s2 m1 l = Some x" and "range_safe s2 m1 l = Some y"
+              using 8 read_safe_range_safe[of s2 m0 l x y m1]
+                range_safe_same[of s2 m0 l y m1] by blast+  
             moreover have "l1 |\<notin>| L2" using 14 1 True by simp
             ultimately have "read_safe (finsert l1 s) m1 l = Some x"
-              using 11 `y |\<subseteq>| L2` read_safe_locs_safe_same[where ?s' = "finsert l1 s"]
+              using 11 `y |\<subseteq>| L2` read_safe_range_safe_same[where ?s' = "finsert l1 s"]
               by blast
             then show ?thesis by simp
           next
@@ -2385,7 +2385,7 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
             from 12 have "l1 |\<in>| L3" using `is1=iv#is1'` locations_l_in_L by blast
             with 13 have "l1 |\<notin>| L2" by blast
 
-            have "l1 |\<in>| L1" using 4 using locs_safe_subs by blast
+            have "l1 |\<in>| L1" using 4 using range_safe_subs by blast
             moreover have "l1 |\<notin>| L1'"
               using 1 `is1=iv#is1'` noloops[of m0 iv is1' l1 l1' s L1 L1'] 4 5 by simp
             ultimately have "m1$l1 = m0$l1" using 7 by blast
@@ -2399,22 +2399,22 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
               moreover from 4 
               have
                 "fold
-                  (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                  (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                   ls
                   (Some {|l1|})
                 = Some L1"
                 using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s` by (auto simp add:case_memory_def)
               then obtain L1''
-                where "locs_safe (finsert l1 s) m0 l = Some L1''"
+                where "range_safe (finsert l1 s) m0 l = Some L1''"
                   and "L1'' |\<subseteq>| L1"
-                using fold_some_subs[of "locs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
+                using fold_some_subs[of "range_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
                 by blast
               moreover from 9 obtain cd1' where "read_safe (finsert l1 s) m0 l = Some cd1'"
                 using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s`
                 apply (auto simp add:case_memory_def)
                 using those_map_none[of "read_safe (finsert l1 s) m0"] `l \<in> set ls` by force
-              moreover have "locs_safe (finsert l1 s) m0 l1' = Some L1'" using 5 \<open>l1 |\<notin>| L1'\<close>
-                by (smt (verit, best) finsertE fminusD1 fminusD2 locs_safe_nin_same)
+              moreover have "range_safe (finsert l1 s) m0 l1' = Some L1'" using 5 \<open>l1 |\<notin>| L1'\<close>
+                by (smt (verit, best) finsertE fminusD1 fminusD2 range_safe_nin_same)
               moreover have "l1 |\<notin>| s" using 9 by auto
               moreover from 11 have "finsert l1 s |\<inter>| L2 = {||}" using `l1 |\<notin>| L2` by simp
               moreover from 12 obtain L3'
@@ -2428,7 +2428,7 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
               moreover from 13 have "L3' |\<inter>| L2 = {||}" using `L3 = finsert l1 L3'` by auto
               moreover from 15 have "disjoined m0 L1''" using `L1'' |\<subseteq>| L1` by blast
               moreover have "l1 |\<notin>| L1''"
-                by (metis calculation(2) finsert_not_fempty finter_finsert_left locs_safe_disj)
+                by (metis calculation(2) finsert_not_fempty finter_finsert_left range_safe_disj)
               ultimately show ?thesis using IH[OF _ _ `l \<in> set ls`] Some Array 3 6 8 10 14 by auto
             next
               case False
@@ -2438,90 +2438,90 @@ proof (induction rule: read_safe.induct[where ?P = ?P])
                   and "ls$i' = Some l'"
                 by (metis "12" Array Some \<open>is1 = iv # is1'\<close> \<open>m1 $ l1 = m0 $ l1\<close>
                     locations_obtain mdata.inject(2) option.inject)
-              moreover have "\<exists>L. locs m0 l = Some L"
+              moreover have "\<exists>L. range m0 l = Some L"
               proof -
                 have "l1 |\<notin>| s" using 9 by auto
                 then have
-                  "locs_safe s m0 l1
+                  "range_safe s m0 l1
                    = fold
-                      (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                      (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                       ls
                       (Some {|l1|})"
                   using Some Array `m1$l1 = m0$l1` by (auto simp add:case_memory_def)
-                with 4 obtain L where "locs_safe (finsert l1 s) m0 l = Some L"
-                  using fold_f_set_none[OF `l \<in> set ls`, of "locs_safe (finsert l1 s) m0"]
+                with 4 obtain L where "range_safe (finsert l1 s) m0 l = Some L"
+                  using fold_f_set_none[OF `l \<in> set ls`, of "range_safe (finsert l1 s) m0"]
                   by fastforce
-                then show ?thesis unfolding locs_def using locs_safe_subset_same by blast
+                then show ?thesis unfolding range_def using range_safe_subset_same by blast
               qed
-              then obtain L where L_def: "locs m0 l = Some L" by blast
-              moreover have "\<exists>L'. locs_safe (finsert l1 s) m0 l' = Some L'"
+              then obtain L where L_def: "range m0 l = Some L" by blast
+              moreover have "\<exists>L'. range_safe (finsert l1 s) m0 l' = Some L'"
               proof -
                 have "l1 |\<notin>| s" using 9 by auto
                 then have
-                  "locs_safe s m0 l1
+                  "range_safe s m0 l1
                   = fold
-                      (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                      (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                       ls
                       (Some {|l1|})"
                   using Some Array `m1$l1 = m0$l1` by (auto simp add:case_memory_def)
                 moreover have "l' \<in> set ls" using `ls$i' = Some l'` nth_in_set by fast
-                ultimately obtain L where "locs_safe (finsert l1 s) m0 l' = Some L"
-                  using fold_f_set_none[of l' _ "locs_safe (finsert l1 s) m0"] using 4 by fastforce
-                then show ?thesis unfolding locs_def using locs_safe_subset_same by blast
+                ultimately obtain L where "range_safe (finsert l1 s) m0 l' = Some L"
+                  using fold_f_set_none[of l' _ "range_safe (finsert l1 s) m0"] using 4 by fastforce
+                then show ?thesis unfolding range_def using range_safe_subset_same by blast
               qed
-              then obtain L' where "locs_safe (finsert l1 s) m0 l' = Some L'" by blast
-              then have L'_def: "locs_safe s m0 l' = Some L'"
-                using data.locs_safe_subset_same by blast
-              then have "locs m0 l' = Some L'" unfolding locs_def
-                using locs_safe_subset_same by blast
+              then obtain L' where "range_safe (finsert l1 s) m0 l' = Some L'" by blast
+              then have L'_def: "range_safe s m0 l' = Some L'"
+                using data.range_safe_subset_same by blast
+              then have "range m0 l' = Some L'" unfolding range_def
+                using range_safe_subset_same by blast
               ultimately have "(L |\<inter>| L' = {||})"
                 using 15 Some Array `m1$l1 = m0$l1` l_def `l1 |\<in>| L1` unfolding disjoined_def by metis
               moreover from 1 have "mlookup m0 is1' l' = Some l1'"
                 using Some Array `is1=iv#is1'` `m1$l1 = m0$l1` \<open>ls $ i' = Some l'\<close>
                   \<open>vtype_class.to_nat iv = Some i'\<close> mlookup_obtain_nempty2 by fastforce
-              then have "L1' |\<subseteq>| L'" using mlookup_locs_subs 5 L'_def by blast
+              then have "L1' |\<subseteq>| L'" using mlookup_range_safe_subs 5 L'_def by blast
               ultimately have "L |\<inter>| L1' = {||}" by blast
               moreover have "L |\<subseteq>| L1" using L_def 4
               proof -
                 from 4 have
                   "fold
-                    (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                    (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                     ls
                     (Some {|l1|})
                   = Some L1"
                   using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s` by (auto simp add:case_memory_def)
                 then obtain L1''
-                  where "locs_safe (finsert l1 s) m0 l = Some L1''"
+                  where "range_safe (finsert l1 s) m0 l = Some L1''"
                     and "L1'' |\<subseteq>| L1"
-                  using fold_some_subs[of "locs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
+                  using fold_some_subs[of "range_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
                   by blast
-                then show ?thesis using L_def unfolding locs_def
-                  by (metis bot.extremum data.locs_safe_subset_same option.inject)
+                then show ?thesis using L_def unfolding range_def
+                  by (metis bot.extremum data.range_safe_subset_same option.inject)
               qed
               ultimately have "\<forall>l|\<in>|L. m0$l = m1$l" using 7 by force
-              then have "locs m1 l = Some L" using L_def
-                using locs_same by metis
+              then have "range m1 l = Some L" using L_def
+                using range_same by metis
               moreover have "(finsert l1 s) |\<inter>| L = {||}"
               proof -
                 from 4 have
                   "fold
-                    (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+                    (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
                     ls
                     (Some {|l1|})
                   = Some L1"
                   using Some Array `m1$l1 = m0$l1` `l1 |\<notin>| s` by (auto simp add:case_memory_def)
                 then obtain L1''
-                  where L1''_def: "locs_safe (finsert l1 s) m0 l = Some L1''"
+                  where L1''_def: "range_safe (finsert l1 s) m0 l = Some L1''"
                     and "L1'' |\<subseteq>| L1"
-                  using fold_some_subs[of "locs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
+                  using fold_some_subs[of "range_safe (finsert l1 s) m0" ls "Some {|l1|}" L1] `l \<in> set ls`
                     by blast
-                moreover have "(finsert l1 s) |\<inter>| L1'' = {||}" using locs_safe_disj L1''_def by blast
-                ultimately show ?thesis using L_def unfolding locs_def
-                  by (metis bot.extremum data.locs_safe_subset_same option.inject)
+                moreover have "(finsert l1 s) |\<inter>| L1'' = {||}" using range_safe_disj L1''_def by blast
+                ultimately show ?thesis using L_def unfolding range_def
+                  by (metis bot.extremum data.range_safe_subset_same option.inject)
               qed
-              ultimately have "locs_safe (finsert l1 s) m1 l = Some L"
-                using locs_safe_nin_same[of "{||}"] `l1 |\<notin>| s` `L |\<subseteq>| L1` unfolding locs_def by blast
-              then show ?thesis using locs_safe_read_safe by blast
+              ultimately have "range_safe (finsert l1 s) m1 l = Some L"
+                using range_safe_nin_same[of "{||}"] `l1 |\<notin>| s` `L |\<subseteq>| L1` unfolding range_def by blast
+              then show ?thesis using range_safe_read_safe by blast
             qed
           qed
         qed
@@ -2537,9 +2537,9 @@ qed
 lemma update_some_obtains_read:
   assumes "mlookup m0 is1 l1 = Some l1'"
   and "m1 $ l1' = m0 $ l2"
-  and "locs_safe s0 m0 l1 = Some L1"
-  and "locs_safe s0 m0 l1' = Some L1'"
-  and "locs_safe s1 m0 l2 = Some L2"
+  and "range_safe s0 m0 l1 = Some L1"
+  and "range_safe s0 m0 l1' = Some L1'"
+  and "range_safe s1 m0 l2 = Some L2"
   and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
   and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
   and "read_safe s0 m0 l1 = Some cd1"
@@ -2551,15 +2551,15 @@ lemma update_some_obtains_read:
   and "disjoined m0 L1"
 obtains x where "read_safe s0 m1 l1 = Some x"
   using update_some[of m0 l1 l1' m1 l2 s0 L1' s1 L2 cd2] assms
-  unfolding locs_def read_def 
+  unfolding range_def read_def 
   by blast
 
-lemma update_some_obtains_locs:
+lemma update_some_obtains_range:
   assumes "mlookup m0 is1 l1 = Some l1'"
   and "m1 $ l1' = m0 $ l2"
-  and "locs_safe s0 m0 l1 = Some L1"
-  and "locs_safe s0 m0 l1' = Some L1'"
-  and "locs_safe s1 m0 l2 = Some L2"
+  and "range_safe s0 m0 l1 = Some L1"
+  and "range_safe s0 m0 l1' = Some L1'"
+  and "range_safe s1 m0 l2 = Some L2"
   and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
   and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
   and "s0 |\<inter>| L2 = {||}"
@@ -2567,50 +2567,50 @@ lemma update_some_obtains_locs:
   and "L3 |\<inter>| L2 = {||}"
   and "l1' |\<notin>| L2"
   and "disjoined m0 L1"
-obtains L where "locs_safe s0 m1 l1 = Some L"
+obtains L where "range_safe s0 m1 l1 = Some L"
 proof -
   from assms(3) obtain cd1 where "read_safe s0 m0 l1 = Some cd1"
-    using locs_safe_read_safe by blast
+    using range_safe_read_safe by blast
   moreover from assms(5) obtain cd2 where "read_safe s1 m0 l2 = Some cd2"
-    using locs_safe_read_safe by blast
+    using range_safe_read_safe by blast
   ultimately obtain x where "read_safe s0 m1 l1 = Some x"
     using update_some_obtains_read[OF assms(1,2,3,4,5,6,7) _ _ assms(8, 9,10,11,12)]
     by blast
-  then show ?thesis using locs_read_some that by blast
+  then show ?thesis using range_read_some that by blast
 qed
 
-lemma disjoined_locs_disj:
+lemma disjoined_range_disj:
   assumes "disjoined m0 L"
       and "x |\<in>| L"
       and "m0 $ x = Some (mdata.Array xs)"
       and "m0 $ x = m1 $ x"
-      and "\<forall>l \<in> set xs. locs m1 l = locs m0 l"
+      and "\<forall>l \<in> set xs. range m1 l = range m0 l"
     shows
   "\<forall>xs. m1$x = Some (mdata.Array xs)
     \<longrightarrow> (\<forall>i j i' j' L L'.
-          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L'
+          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> range m1 i' = Some L \<and> range m1 j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})"
 proof (rule allI, rule impI)
   fix xs
   assume "m1 $ x = Some (mdata.Array xs)"
   with assms(1,2,4) have "(\<forall>i j i' j' L L'.
-          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m0 i' = Some L \<and> locs m0 j' = Some L'
+          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> range m0 i' = Some L \<and> range m0 j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})" unfolding disjoined_def by auto
-  then show "\<forall>i j i' j' L L'. i \<noteq> j \<and> xs $ i = Some i' \<and> xs $ j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L' \<longrightarrow> L |\<inter>| L' = {||}"
+  then show "\<forall>i j i' j' L L'. i \<noteq> j \<and> xs $ i = Some i' \<and> xs $ j = Some j' \<and> range m1 i' = Some L \<and> range m1 j' = Some L' \<longrightarrow> L |\<inter>| L' = {||}"
     using assms(3,5)
     by (metis \<open>m1 $ x = Some (mdata.Array xs)\<close> assms(4) mdata.inject(2) nth_in_set option.inject)
 qed
 
-lemma update_some_locs_subset:
+lemma update_some_range_subset:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "locs_safe s m0 l1 = Some L1"
-      and "locs_safe s m0 l1' = Some L1'"
-      and "locs_safe s m0 l2' = Some L2'"
+      and "range_safe s m0 l1 = Some L1"
+      and "range_safe s m0 l1' = Some L1'"
+      and "range_safe s m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "disjoined m0 L1"
-      and "locs_safe s m1 l1 = Some L"
+      and "range_safe s m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
   using assms
 proof (induction is1 arbitrary: L l1 L1)
@@ -2620,37 +2620,37 @@ proof (induction is1 arbitrary: L l1 L1)
   proof (cases "m1$l1")
     case None
     then show ?thesis
-      by (metis Nil.prems(9) locs_safe_obtains option.distinct(1))
+      by (metis Nil.prems(9) range_safe_obtains option.distinct(1))
   next
     case (Some a)
     then show ?thesis
     proof (cases a)
       case (Value x1)
       with Nil(9) Some have "L = {|l1|}" by (simp add:case_memory_def split:if_split_asm)
-      moreover from Nil(3) have "l1 |\<in>| L1" using locs_safe_subs by blast
+      moreover from Nil(3) have "l1 |\<in>| L1" using range_safe_subs by blast
       ultimately show ?thesis by auto
     next
       case (Array xs)
       from Nil(3) have "l1 |\<notin>| s" by auto
-      with Nil(9) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l1|}) =
+      with Nil(9) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs (Some {|l1|}) =
         Some L" using Some Array by (simp add:case_memory_def)
-      moreover have "\<forall>x\<in>set xs. \<forall>L. locs_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
+      moreover have "\<forall>x\<in>set xs. \<forall>L. range_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
       proof (rule ballI, rule allI, rule impI)
         fix x L'
-        assume "x \<in> set xs" and "locs_safe (finsert l1 s) m1 x = Some L'"
+        assume "x \<in> set xs" and "range_safe (finsert l1 s) m1 x = Some L'"
         moreover have "m1 $ l1 = m1 $ l2'"
         proof -
           have "m0 $ l2' = m1 $ l2'"
-            by (metis Nil.prems(5,7) locs_safe_subs)
+            by (metis Nil.prems(5,7) range_safe_subs)
           then show ?thesis using Nil(2) \<open>l1 = l1'\<close> by simp
         qed
-        moreover have L2'_def: "locs_safe s m1 l2' = Some L2'"
-          using Nil.prems(5,7) locs_safe_same by blast
+        moreover have L2'_def: "range_safe s m1 l2' = Some L2'"
+          using Nil.prems(5,7) range_safe_same by blast
         ultimately show "fset L' \<subseteq> fset (L1 |\<union>| L2')"
-          by (metis Array Some locs_safe_obtains_subset less_eq_fset.rep_eq locslocs sup.coboundedI2)
+          by (metis Array Some range_safe_obtains_subset less_eq_fset.rep_eq range_range sup.coboundedI2)
       qed
       moreover have "fset {|l1|} \<subseteq> fset (L1 |\<union>| L2')"
-        by (metis Nil.prems(3) finsert_absorb finsert_is_funion less_eq_fset.rep_eq locs_safe_subs sup.cobounded1
+        by (metis Nil.prems(3) finsert_absorb finsert_is_funion less_eq_fset.rep_eq range_safe_subs sup.cobounded1
             sup.coboundedI1)
       ultimately show ?thesis using fold_subs by fast
     qed
@@ -2662,9 +2662,9 @@ next
     using Cons(2)
     by (cases is1',auto simp add:case_memory_def split:option.split_asm mdata.split_asm)
   then have m1_ls: "m1 $ l1 = Some (mdata.Array ls)"
-    by (metis Cons.prems(1,3,4,6) locs_safe_subs fminus_iff noloops)
+    by (metis Cons.prems(1,3,4,6) range_safe_subs fminus_iff noloops)
 
-  have "l1 |\<in>| L1" using Cons.prems(3) locs_safe_subs by blast
+  have "l1 |\<in>| L1" using Cons.prems(3) range_safe_subs by blast
 
   obtain i'' where i''_def: "to_nat i = Some i''" and "i'' < length ls"
     using Cons.prems(1) mlookup_obtain_nempty2
@@ -2673,25 +2673,25 @@ next
 
   have "l1 |\<notin>| s"
     using Cons.prems(3) by force
-  with Cons(10) m1_ls have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l1|}) = Some L" by (simp add:case_memory_def)
-  moreover have "\<forall>x\<in>set ls. \<forall>L. locs_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
+  with Cons(10) m1_ls have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) ls (Some {|l1|}) = Some L" by (simp add:case_memory_def)
+  moreover have "\<forall>x\<in>set ls. \<forall>L. range_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
   proof
     fix x assume "x \<in> set ls"
     then obtain i' where x_def: "ls ! i' = x" and "i'<length ls"
       by (meson in_set_conv_nth)
     then have "ls $ i' = Some x" by simp 
-    then show "\<forall>L. locs_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
+    then show "\<forall>L. range_safe (finsert l1 s) m1 x = Some L \<longrightarrow> fset L \<subseteq> fset (L1 |\<union>| L2')"
     proof (cases "i' = i''")
       case True
       show ?thesis
       proof (rule allI, rule impI)
-        fix LLL assume "locs_safe (finsert l1 s) m1 x = Some LLL"
-        then have "locs_safe s m1 x = Some LLL"
-          using data.locs_safe_subset_same by blast
+        fix LLL assume "range_safe (finsert l1 s) m1 x = Some LLL"
+        then have "range_safe s m1 x = Some LLL"
+          using data.range_safe_subset_same by blast
         moreover from True have "mlookup m0 is1' x = Some l1'" using Cons(2) \<open>ls ! i' = x\<close> \<open>to_nat i = Some i''\<close>
           by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> ls_def mdata.inject(2) mlookup_obtain_nempty2 option.inject)
-        moreover obtain LL where "locs_safe s m0 x = Some LL" and "LL |\<subseteq>| L1"
-          by (meson Cons.prems(3) \<open>x \<in> set ls\<close> locs_safe_obtains_subset fsubset_finsertI locs_safe_subset_same ls_def)
+        moreover obtain LL where "range_safe s m0 x = Some LL" and "LL |\<subseteq>| L1"
+          by (meson Cons.prems(3) \<open>x \<in> set ls\<close> range_safe_obtains_subset fsubset_finsertI range_safe_subset_same ls_def)
         moreover have "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l"
           using Cons.prems(6) calculation(4) by blast
         moreover have "disjoined m0 LL"
@@ -2702,48 +2702,48 @@ next
       qed
     next
       case False
-      then obtain LL where "locs_safe (finsert l1 s) m0 x = Some LL" and "LL |\<subseteq>| L1"
-        using Cons.prems(3) \<open>x \<in> set ls\<close> locs_safe_obtains_subset ls_def by blast
-      then have "locs m0 x = Some LL"
-          by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
-      moreover obtain LLL where LL_def: "locs_safe (finsert l1 s) m0 (ls ! i'') = Some LLL" and "LLL |\<subseteq>| L1"
+      then obtain LL where "range_safe (finsert l1 s) m0 x = Some LL" and "LL |\<subseteq>| L1"
+        using Cons.prems(3) \<open>x \<in> set ls\<close> range_safe_obtains_subset ls_def by blast
+      then have "range m0 x = Some LL"
+          by (metis bot.extremum data.range_def data.range_safe_subset_same)
+      moreover obtain LLL where LL_def: "range_safe (finsert l1 s) m0 (ls ! i'') = Some LLL" and "LLL |\<subseteq>| L1"
         using Cons.prems(3)
-        by (meson \<open>ls $ i'' = Some (ls ! i'')\<close> locs_safe_obtains_subset ls_def nth_in_set)
-      then have LLL_def: "locs m0 (ls ! i'') = Some LLL"
-          by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
+        by (meson \<open>ls $ i'' = Some (ls ! i'')\<close> range_safe_obtains_subset ls_def nth_in_set)
+      then have LLL_def: "range m0 (ls ! i'') = Some LLL"
+          by (metis bot.extremum data.range_def data.range_safe_subset_same)
       moreover have "LL |\<inter>| LLL = {||}" using Cons(9) unfolding disjoined_def using False i''_def x_def \<open>l1 |\<in>| L1\<close> ls_def \<open>ls $i'' = Some (ls ! i'')\<close>  \<open>ls $ i' = Some x\<close>
       LL_def LLL_def using calculation(1) by blast
       moreover have "L1' |\<subseteq>| LLL"
       proof -
         have "mlookup m0 is1' (ls ! i'') = Some l1'"
           using Cons.prems(1) \<open>ls $ i'' = Some (ls ! i'')\<close> i''_def ls_def mlookup_obtain_nempty2 by fastforce
-        moreover from LL_def have "locs_safe s m0 (ls ! i'') = Some LLL"
-          using data.locs_safe_subset_same by blast
-        ultimately show ?thesis using mlookup_locs_subs[OF _ Cons(5)] by blast
+        moreover from LL_def have "range_safe s m0 (ls ! i'') = Some LLL"
+          using data.range_safe_subset_same by blast
+        ultimately show ?thesis using mlookup_range_safe_subs[OF _ Cons(5)] by blast
       qed
       ultimately have "LL |\<inter>| L1' = {||}" by auto
       with \<open>LL |\<subseteq>| L1\<close> have "\<forall>l |\<in>| LL. m1 $ l = m0 $ l" using Cons(7) by blast
-      then have "locs_safe (finsert l1 s) m1 x = Some LL" using Cons(10)
-        using \<open>locs_safe (finsert l1 s) m0 x = Some LL\<close> data.locs_safe_same by blast
+      then have "range_safe (finsert l1 s) m1 x = Some LL" using Cons(10)
+        using \<open>range_safe (finsert l1 s) m0 x = Some LL\<close> data.range_safe_same by blast
       with \<open>LL |\<subseteq>| L1\<close> show ?thesis by auto
     qed
   qed
   moreover from \<open>l1 |\<in>| L1\<close> have "fset {|l1|} \<subseteq> fset (L1 |\<union>| L2')" by simp
-  ultimately show ?case using fold_subs[of ls "locs_safe (finsert l1 s) m1" "fset (L1 |\<union>| L2')" "{|l1|}" L]
+  ultimately show ?case using fold_subs[of ls "range_safe (finsert l1 s) m1" "fset (L1 |\<union>| L2')" "{|l1|}" L]
     by blast
 qed
 
 lemma disjoined_update:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "locs_safe s m0 l1 = Some L1"
-      and "locs_safe s m0 l1' = Some L1'"
-      and "locs_safe s m0 l2' = Some L2'"
+      and "range_safe s m0 l1 = Some L1"
+      and "range_safe s m0 l1' = Some L1'"
+      and "range_safe s m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "disjoined m0 L1"
       and "disjoined m0 L2'"
-      and "locs_safe s m1 l1 = Some L"
+      and "range_safe s m1 l1 = Some L"
       and "L1 |-| L1' |\<inter>| L2' = {||}"
     shows "disjoined m1 L"
   using assms
@@ -2754,7 +2754,7 @@ proof (induction is1 arbitrary: L l1 L1)
   proof (cases "m1$l1")
     case None
     then show ?thesis
-      by (metis Nil.prems(10) locs_safe_obtains option.distinct(1))
+      by (metis Nil.prems(10) range_safe_obtains option.distinct(1))
   next
     case (Some a)
     then show ?thesis
@@ -2770,13 +2770,13 @@ proof (induction is1 arbitrary: L l1 L1)
         fix x
         assume "x |\<in>| L"
         moreover have "l1 |\<notin>| s" using Nil by auto
-        with Nil(10) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. locs_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs
+        with Nil(10) have "fold (\<lambda>x y. y \<bind> (\<lambda>y'. range_safe (finsert l1 s) m1 x \<bind> (\<lambda>l. Some (l |\<union>| y')))) xs
                   (Some {|l1|}) = Some L"  using Some Array by (simp add:case_memory_def)
-        ultimately consider "x = l1" | n L'' where "n<length xs" and "locs_safe (finsert l1 s) m1 (xs ! n) = Some L''" "x |\<in>| L''"
+        ultimately consider "x = l1" | n L'' where "n<length xs" and "range_safe (finsert l1 s) m1 (xs ! n) = Some L''" "x |\<in>| L''"
           using fold_union_in by fast
         then show "\<forall>xs. m1 $ x = Some (mdata.Array xs) \<longrightarrow>
               (\<forall>i j i' j' L L'.
-                  i \<noteq> j \<and> xs $ i = Some i' \<and> xs $ j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L' \<longrightarrow>
+                  i \<noteq> j \<and> xs $ i = Some i' \<and> xs $ j = Some j' \<and> range m1 i' = Some L \<and> range m1 j' = Some L' \<longrightarrow>
                   L |\<inter>| L' = {||})"
         proof cases
           case 1
@@ -2784,68 +2784,68 @@ proof (induction is1 arbitrary: L l1 L1)
           proof (rule allI, rule impI, (rule allI)+, rule impI)
             fix xs' i j i' j' L L'
             assume "m1 $ x = Some (mdata.Array xs')"
-              and *: "i \<noteq> j \<and> xs' $ i = Some i' \<and> xs' $ j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L'"
-            moreover have "locs m0 i' = Some L"
+              and *: "i \<noteq> j \<and> xs' $ i = Some i' \<and> xs' $ j = Some j' \<and> range m1 i' = Some L \<and> range m1 j' = Some L'"
+            moreover have "range m0 i' = Some L"
             proof -
-              obtain L0 where "locs_safe (finsert l2' s) m0 i' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5)
-                by (metis "1" \<open>l1 = l1'\<close> assms(2) calculation(1,2) locs_safe_obtains_subset nth_in_set) 
-              then have "locs m0 i' = Some L0"
-                by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
+              obtain L0 where "range_safe (finsert l2' s) m0 i' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5)
+                by (metis "1" \<open>l1 = l1'\<close> assms(2) calculation(1,2) range_safe_obtains_subset nth_in_set) 
+              then have "range m0 i' = Some L0"
+                by (metis bot.extremum data.range_def data.range_safe_subset_same)
               moreover from \<open>L0 |\<subseteq>| L2'\<close> have "\<forall>l |\<in>| L0. m1 $ l = m0 $ l" using Nil(7) by blast
-              ultimately show ?thesis using * locs_same by metis
+              ultimately show ?thesis using * range_same by metis
             qed
-            moreover have "locs m0 j' = Some L'" 
+            moreover have "range m0 j' = Some L'" 
             proof -
-              obtain L0 where "locs_safe (finsert l2' s) m0 j' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5)
-                by (metis "1" \<open>l1 = l1'\<close> assms(2) calculation(1,2) locs_safe_obtains_subset nth_in_set) 
-              then have "locs m0 j' = Some L0"
-                by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
+              obtain L0 where "range_safe (finsert l2' s) m0 j' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5)
+                by (metis "1" \<open>l1 = l1'\<close> assms(2) calculation(1,2) range_safe_obtains_subset nth_in_set) 
+              then have "range m0 j' = Some L0"
+                by (metis bot.extremum data.range_def data.range_safe_subset_same)
               moreover from \<open>L0 |\<subseteq>| L2'\<close> have "\<forall>l |\<in>| L0. m1 $ l = m0 $ l" using Nil(7) by blast
-              ultimately show ?thesis using * locs_same by metis
+              ultimately show ?thesis using * range_same by metis
             qed
             ultimately show "L |\<inter>| L' = {||}" using Some Array  Nil(9) unfolding disjoined_def
-              by (metis "1" \<open>l1 = l1'\<close> assms(2,5) locs_safe_subs)
+              by (metis "1" \<open>l1 = l1'\<close> assms(2,5) range_safe_subs)
           qed
         next
           case 2
-          moreover from Nil(5) obtain LL where LL_def: "locs_safe (finsert l2' s) m0 (xs ! n) = Some LL" and "LL |\<subseteq>| L2'" using Some Array Nil(2) \<open>l1 = l1'\<close>
-            by (metis calculation(1) locs_safe_obtains_subset nth_mem)
-          then have "locs_safe (finsert l2' s) m1 (xs ! n) = Some LL"
-            by (metis assms(7) data.locs_safe_same finsert_fsubset mk_disjoint_finsert)
-          ultimately have "LL = L''" using locslocs by blast
+          moreover from Nil(5) obtain LL where LL_def: "range_safe (finsert l2' s) m0 (xs ! n) = Some LL" and "LL |\<subseteq>| L2'" using Some Array Nil(2) \<open>l1 = l1'\<close>
+            by (metis calculation(1) range_safe_obtains_subset nth_mem)
+          then have "range_safe (finsert l2' s) m1 (xs ! n) = Some LL"
+            by (metis assms(7) data.range_safe_same finsert_fsubset mk_disjoint_finsert)
+          ultimately have "LL = L''" using range_range by blast
           with Nil(9) 2 LL_def \<open>LL |\<subseteq>| L2'\<close> Some Array
           have *: "\<forall>x|\<in>|L2'. \<forall>xs. m0 $ x = Some (mdata.Array xs) \<longrightarrow> (\<forall>i j i' j' L L'.
-          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> locs m0 i' = Some L \<and> locs m0 j' = Some L'
+          i \<noteq> j \<and> xs $ i = Some i' \<and> xs$j = Some j' \<and> range m0 i' = Some L \<and> range m0 j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})" unfolding disjoined_def
             by (metis)
           show ?thesis
           proof (rule allI, rule impI, (rule allI)+, rule impI)
             fix xs' i j i' j' L L'
             assume 00: "m1 $ x = Some (mdata.Array xs')"
-              and **: "i \<noteq> j \<and> xs' $ i = Some i' \<and> xs' $ j = Some j' \<and> locs m1 i' = Some L \<and> locs m1 j' = Some L'"
+              and **: "i \<noteq> j \<and> xs' $ i = Some i' \<and> xs' $ j = Some j' \<and> range m1 i' = Some L \<and> range m1 j' = Some L'"
             moreover have "x |\<in>|L2'"
               using "2"(3) \<open>LL = L''\<close> \<open>LL |\<subseteq>| L2'\<close> by blast
             moreover have "m0 $ x = Some (mdata.Array xs')"
               using "00" assms(7) calculation(3) by auto
-            moreover have "locs m0 i' = Some L"
+            moreover have "range m0 i' = Some L"
             proof -
-              obtain L0 where "locs_safe (finsert l2' s) m0 i' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5) Some Array 2 LL_def \<open>LL |\<subseteq>| L2'\<close>
-                by (smt (verit, ccfv_threshold) "**" \<open>LL = L''\<close> locs_safe_l_in_L calculation(1) fsubset_trans locs_safe_in_subs
+              obtain L0 where "range_safe (finsert l2' s) m0 i' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5) Some Array 2 LL_def \<open>LL |\<subseteq>| L2'\<close>
+                by (smt (verit, ccfv_threshold) "**" \<open>LL = L''\<close> range_safe_l_in_L calculation(1) fsubset_trans range_safe_in_subs
                     nth_in_set)
-              then have "locs m0 i' = Some L0"
-                by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
+              then have "range m0 i' = Some L0"
+                by (metis bot.extremum data.range_def data.range_safe_subset_same)
               moreover from \<open>L0 |\<subseteq>| L2'\<close> have "\<forall>l |\<in>| L0. m1 $ l = m0 $ l" using Nil(7) by blast
-              ultimately show ?thesis using ** locs_same by metis
+              ultimately show ?thesis using ** range_same by metis
             qed
-            moreover have "locs m0 j' = Some L'"
+            moreover have "range m0 j' = Some L'"
             proof -
-              obtain L0 where "locs_safe (finsert l2' s) m0 j' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5) Some Array 2 LL_def \<open>LL |\<subseteq>| L2'\<close>
-                by (smt (verit, ccfv_threshold) "**" \<open>LL = L''\<close> locs_safe_l_in_L calculation(1) fsubset_trans locs_safe_in_subs
+              obtain L0 where "range_safe (finsert l2' s) m0 j' = Some L0" and "L0 |\<subseteq>| L2'" using Nil(5) Some Array 2 LL_def \<open>LL |\<subseteq>| L2'\<close>
+                by (smt (verit, ccfv_threshold) "**" \<open>LL = L''\<close> range_safe_l_in_L calculation(1) fsubset_trans range_safe_in_subs
                     nth_in_set)
-              then have "locs m0 j' = Some L0"
-                by (metis bot.extremum data.locs_def data.locs_safe_subset_same)
+              then have "range m0 j' = Some L0"
+                by (metis bot.extremum data.range_def data.range_safe_subset_same)
               moreover from \<open>L0 |\<subseteq>| L2'\<close> have "\<forall>l |\<in>| L0. m1 $ l = m0 $ l" using Nil(7) by blast
-              ultimately show ?thesis using ** locs_same by metis
+              ultimately show ?thesis using ** range_same by metis
             qed
             ultimately show "L |\<inter>| L' = {||}" using * by blast
           qed
@@ -2860,9 +2860,9 @@ next
     using Cons(2)
     by (cases is1',auto simp add:case_memory_def split:option.split_asm mdata.split_asm)
   then have m1_ls: "m1 $ l1 = Some (mdata.Array ls)"
-    by (metis Cons.prems(1,3,4,6) locs_safe_subs fminus_iff noloops)
+    by (metis Cons.prems(1,3,4,6) range_safe_subs fminus_iff noloops)
 
-  have "l1 |\<in>| L1" using Cons.prems(3) locs_safe_subs by blast
+  have "l1 |\<in>| L1" using Cons.prems(3) range_safe_subs by blast
 
   obtain i'' where i''_def: "to_nat i = Some i''" and "i'' < length ls"
     using Cons.prems(1) mlookup_obtain_nempty2
@@ -2879,18 +2879,18 @@ next
               i \<noteq> j
               \<and> xs $ i = Some i'
               \<and> xs $ j = Some j'
-              \<and> locs m1 i' = Some L
-              \<and> locs m1 j' = Some L'
+              \<and> range m1 i' = Some L
+              \<and> range m1 j' = Some L'
               \<longrightarrow> L |\<inter>| L' = {||})"
     proof (rule allI, rule impI)
       fix xs
       assume xs_def: "m1 $ x = Some (mdata.Array xs)"
 
       have "l1 |\<notin>| s"
-        by (metis Cons.prems(3) \<open>l1 |\<in>| L1\<close> fminus_iff fminus_triv locs_safe_disj)
+        by (metis Cons.prems(3) \<open>l1 |\<in>| L1\<close> fminus_iff fminus_triv range_safe_disj)
       then have
         "fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. (locs_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. (range_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           ls
           (Some {|l1|})
          = Some L"
@@ -2899,17 +2899,17 @@ next
          (eq) "x = l1"
         | (2) i' L'
         where "i' < length ls"
-          and "locs_safe (finsert l1 s) m1 (ls ! i') = Some L'"
+          and "range_safe (finsert l1 s) m1 (ls ! i') = Some L'"
           and "x |\<in>| L'"
-        using fold_union_in[of "locs_safe (finsert l1 s) m1" ls "{|l1|}" L x]
+        using fold_union_in[of "range_safe (finsert l1 s) m1" ls "{|l1|}" L x]
         by blast
       then show
         "\<forall>i j i' j' L L'.
           i \<noteq> j \<and>
           xs $ i = Some i' \<and>
           xs $ j = Some j' \<and>
-          locs m1 i' = Some L \<and>
-          locs m1 j' = Some L'
+          range m1 i' = Some L \<and>
+          range m1 j' = Some L'
         \<longrightarrow> L |\<inter>| L' = {||}"
       proof cases
         case eq
@@ -2919,7 +2919,7 @@ next
           assume "i0 = i''"
               and "j \<noteq> i''"
               and "i' < length ls"
-              and *: "i0 \<noteq> j \<and> xs $ i0 = Some i0' \<and> xs $ j = Some j' \<and> locs m1 i0' = Some L0 \<and> locs m1 j' = Some L'"
+              and *: "i0 \<noteq> j \<and> xs $ i0 = Some i0' \<and> xs $ j = Some j' \<and> range m1 i0' = Some L0 \<and> range m1 j' = Some L'"
         have "\<forall>x |\<in>| L0. x |\<notin>| L'"
         proof
           fix x
@@ -2929,46 +2929,46 @@ next
             using Cons(2) i''_def ls_def \<open>i0 = i''\<close> \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> *
           by (cases "is1'", auto simp add:case_memory_def)
           moreover obtain Li'
-            where Li'_def: "locs_safe (finsert l1 s) m0 i0' = Some Li'"
+            where Li'_def: "range_safe (finsert l1 s) m0 i0' = Some Li'"
               and "Li' |\<subseteq>| L1"
-            using locs_safe_obtains_subset[OF Cons(4) ls_def] using \<open>i' < length ls\<close> \<open>ls = xs\<close> * by (metis nth_in_set)
-          then have "locs_safe s m0 i0' = Some Li'"
-            by (meson fsubset_finsertI locs_safe_subset_same)
+            using range_safe_obtains_subset[OF Cons(4) ls_def] using \<open>i' < length ls\<close> \<open>ls = xs\<close> * by (metis nth_in_set)
+          then have "range_safe s m0 i0' = Some Li'"
+            by (meson fsubset_finsertI range_safe_subset_same)
           moreover have "\<forall>l|\<in>|Li' |-| L1'. m1 $ l = m0 $ l" using Cons(7) \<open>Li' |\<subseteq>| L1\<close> by auto
-          moreover obtain LL' where "locs_safe s m1 i0' = Some LL'" and "LL' |\<subseteq>| L"
-            using locs_safe_obtains_subset[OF Cons(11) m1_ls] \<open>ls = xs\<close> *
-            by (metis fsubset_finsertI locs_safe_subset_same nth_in_set)
+          moreover obtain LL' where "range_safe s m1 i0' = Some LL'" and "LL' |\<subseteq>| L"
+            using range_safe_obtains_subset[OF Cons(11) m1_ls] \<open>ls = xs\<close> *
+            by (metis fsubset_finsertI range_safe_subset_same nth_in_set)
           moreover have "disjoined m0 Li'"
             using Cons.prems(8) \<open>Li' |\<subseteq>| L1\<close> by auto
           ultimately consider "x |\<in>|Li'" | "x |\<in>| L2'"
-            using update_some_locs_subset[OF _ Cons(3) _ Cons(5,6) _ Cons(8), of is1' "i0'" Li' LL']
-            by (metis "*" \<open>x |\<in>| L0\<close> fsubsetD funion_iff locs_def locslocs)
+            using update_some_range_subset[OF _ Cons(3) _ Cons(5,6) _ Cons(8), of is1' "i0'" Li' LL']
+            by (metis "*" \<open>x |\<in>| L0\<close> fsubsetD funion_iff range_def range_range)
           then show "x |\<notin>| L'"
           proof cases
             case 1
             moreover have "L' |\<inter>| Li' = {||}"
             proof -
-              obtain LL where LL_def: "locs m0 j' = Some LL" and "LL |\<subseteq>| L1"
-                by (metis "*" Cons.prems(3) \<open>ls = xs\<close> locs_safe_in_locs locs_safe_subs ls_def)
+              obtain LL where LL_def: "range m0 j' = Some LL" and "LL |\<subseteq>| L1"
+                by (metis "*" Cons.prems(3) \<open>ls = xs\<close> range_safe_in_range range_safe_subs ls_def)
               moreover have "\<forall>l|\<in>|LL. m1 $ l = m0 $ l"
               proof -
                 have "m0 $ l1 = Some (mdata.Array xs)"
                   by (simp add: \<open>ls = xs\<close> ls_def)
-                moreover have "locs m0 i0' = Some Li'"
-                  by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
+                moreover have "range m0 i0' = Some Li'"
+                  by (metis Li'_def fempty_fsubsetI range_def range_safe_subset_same)
                 ultimately have "LL |\<inter>| Li' = {||}"
                   using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
-                moreover have "L1' |\<subseteq>| Li'" using mlookup_locs_subs[OF _ Cons(5)]
-                  using \<open>locs_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
+                moreover have "L1' |\<subseteq>| Li'" using mlookup_range_safe_subs[OF _ Cons(5)]
+                  using \<open>range_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
                 ultimately have "LL |\<inter>| L1' = {||}" by auto
                 then show ?thesis using Cons(7) \<open>LL |\<subseteq>| L1\<close> by auto
               qed
-              ultimately have "locs m0 j' = Some L'" using locs_safe_same[of "{||}" m0 j' LL m1] *
-                using locs_def by argo
+              ultimately have "range m0 j' = Some L'" using range_safe_same[of "{||}" m0 j' LL m1] *
+                using range_def by argo
               moreover have "m0 $ l1 = Some (mdata.Array xs)"
                 by (simp add: \<open>ls = xs\<close> ls_def)
-              moreover have "locs m0 i0' = Some Li'"                                                     
-                by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
+              moreover have "range m0 i0' = Some Li'"                                                     
+                by (metis Li'_def fempty_fsubsetI range_def range_safe_subset_same)
               ultimately show "L' |\<inter>| Li' = {||}"
                 using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
             qed
@@ -2977,25 +2977,25 @@ next
             case 2
             moreover have "L' |\<subseteq>| L1 |-| L1'"
             proof -
-              obtain LL where LL_def: "locs m0 j' = Some LL" and "LL |\<subseteq>| L1"
-                by (metis "*" Cons.prems(3) \<open>ls = xs\<close> locs_safe_in_locs locs_safe_subs ls_def)
+              obtain LL where LL_def: "range m0 j' = Some LL" and "LL |\<subseteq>| L1"
+                by (metis "*" Cons.prems(3) \<open>ls = xs\<close> range_safe_in_range range_safe_subs ls_def)
               moreover have "LL |\<inter>| L1' = {||}"
               proof -
                 have "m0 $ l1 = Some (mdata.Array xs)"
                   by (simp add: \<open>ls = xs\<close> ls_def)
-                moreover have "locs m0 i0' = Some Li'"
-                  by (metis Li'_def fempty_fsubsetI locs_def locs_safe_subset_same)
+                moreover have "range m0 i0' = Some Li'"
+                  by (metis Li'_def fempty_fsubsetI range_def range_safe_subset_same)
                 ultimately have "LL |\<inter>| Li' = {||}"
                   using \<open>l1 |\<in>| L1\<close> * LL_def Cons(9) unfolding disjoined_def by blast
-                moreover have "L1' |\<subseteq>| Li'" using mlookup_locs_subs[OF _ Cons(5)]
-                  using \<open>locs_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
+                moreover have "L1' |\<subseteq>| Li'" using mlookup_range_safe_subs[OF _ Cons(5)]
+                  using \<open>range_safe s m0 i0' = Some Li'\<close> \<open>mlookup m0 is1' i0' = Some l1'\<close> by blast
                 ultimately have "LL |\<inter>| L1' = {||}" by auto
                 then show ?thesis using Cons(7) \<open>LL |\<subseteq>| L1\<close> by auto
               qed
               ultimately have "\<forall>l|\<in>|LL. m1 $ l = m0 $ l"
                 using Cons.prems(6) by blast
-              then have "locs m0 j' = Some L'" using locs_safe_same[of "{||}" m0 j' LL m1] *
-                using LL_def locs_def by argo
+              then have "range m0 j' = Some L'" using range_safe_same[of "{||}" m0 j' LL m1] *
+                using LL_def range_def by argo
               then show ?thesis
                 using LL_def \<open>LL |\<inter>| L1' = {||}\<close> \<open>LL |\<subseteq>| L1\<close> by auto
             qed
@@ -3008,7 +3008,7 @@ next
         show ?thesis
         proof ((rule allI)+, rule impI)
           fix i0 j i0' j' L0 L'
-          assume *: "i0 \<noteq> j \<and> xs $ i0 = Some i0' \<and> xs $ j = Some j' \<and> locs m1 i0' = Some L0 \<and> locs m1 j' = Some L'"
+          assume *: "i0 \<noteq> j \<and> xs $ i0 = Some i0' \<and> xs $ j = Some j' \<and> range m1 i0' = Some L0 \<and> range m1 j' = Some L'"
           then consider
             (1) "i0 \<noteq> j" and "i0 \<noteq> i''" and "j \<noteq> i''" |
             (2) "i0 = i''" and "j \<noteq> i''" |
@@ -3021,57 +3021,57 @@ next
               have "i0 \<noteq> j"
                and "xs $ i0 = Some i0'"
                and "xs $ j = Some j'"
-               and "locs m1 i0' = Some L0"
-               and "locs m1 j' = Some L'"
+               and "range m1 i0' = Some L0"
+               and "range m1 j' = Some L'"
               by simp+
             then have "i0' \<in> set xs" and "j' \<in> set xs" by (auto simp add: nth_in_set)
             then obtain Li'
-              where Li'_def: "locs_safe (finsert l1 s) m0 i0' = Some Li'"
-                and "Li' |\<subseteq>| L1" using locs_safe_obtains_subset[OF Cons(4) ls_def, of "i0'"]
+              where Li'_def: "range_safe (finsert l1 s) m0 i0' = Some Li'"
+                and "Li' |\<subseteq>| L1" using range_safe_obtains_subset[OF Cons(4) ls_def, of "i0'"]
             using \<open>ls = xs\<close> by auto
-            then have "locs m0 i0' = Some Li'"
-              unfolding locs_def using data.locs_safe_subset_same by blast
+            then have "range m0 i0' = Some Li'"
+              unfolding range_def using data.range_safe_subset_same by blast
             moreover obtain Li''
-              where Li''_def: "locs_safe (finsert l1 s) m0 j' = Some Li''"
-              and "Li'' |\<subseteq>| L1" using locs_safe_obtains_subset[OF Cons(4) ls_def, of "j'"]
+              where Li''_def: "range_safe (finsert l1 s) m0 j' = Some Li''"
+              and "Li'' |\<subseteq>| L1" using range_safe_obtains_subset[OF Cons(4) ls_def, of "j'"]
             using \<open>ls = xs\<close> \<open>j' \<in> set xs\<close> by auto
-            then have "locs m0 j' = Some Li''"
-              unfolding locs_def using data.locs_safe_subset_same by blast
+            then have "range m0 j' = Some Li''"
+              unfolding range_def using data.range_safe_subset_same by blast
             moreover have "Li' |\<inter>| Li'' = {||}"
               using "*" Cons.prems(8) \<open>l1 |\<in>| L1\<close> \<open>ls = xs\<close> calculation(1,2) disjoined_def ls_def by blast
-            moreover have "locs m1 i0' = locs m0 i0'" and "locs m1 j' = locs m0 j'"
+            moreover have "range m1 i0' = range m0 i0'" and "range m1 j' = range m0 j'"
             proof -
               have *:"mlookup m0 is1' (ls ! i'') = Some l1'"
                 using Cons(2) i''_def ls_def \<open>ls $ i'' = Some (ls ! i'')\<close>
                 by (cases "is1'", auto simp add:case_memory_def)
-              moreover obtain LL where LL_def: "locs_safe s m0 (ls ! i'') = Some LL"
-              and "LL |\<subseteq>| L1" using locs_safe_obtains_subset[OF Cons(4) ls_def]
-                by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> fsubset_finsertI locs_safe_subset_same nth_in_set)
-              moreover have "L1' |\<subseteq>| LL" using mlookup_locs_subs[OF * Cons(5)] LL_def by simp
+              moreover obtain LL where LL_def: "range_safe s m0 (ls ! i'') = Some LL"
+              and "LL |\<subseteq>| L1" using range_safe_obtains_subset[OF Cons(4) ls_def]
+                by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> fsubset_finsertI range_safe_subset_same nth_in_set)
+              moreover have "L1' |\<subseteq>| LL" using mlookup_range_safe_subs[OF * Cons(5)] LL_def by simp
               moreover have "LL |\<inter>| Li' = {||}"
               proof -
-                from LL_def have "locs m0 (ls ! i'') = Some LL"
-                  by (metis fempty_fsubsetI locs_def locs_safe_subset_same)
-                then show ?thesis using Cons(9) \<open>locs m0 i0' = Some Li'\<close> unfolding disjoined_def
+                from LL_def have "range m0 (ls ! i'') = Some LL"
+                  by (metis fempty_fsubsetI range_def range_safe_subset_same)
+                then show ?thesis using Cons(9) \<open>range m0 i0' = Some Li'\<close> unfolding disjoined_def
                   using "1"(2) \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> \<open>xs $ i0 = Some i0'\<close> ls_def \<open>l1 |\<in>| L1\<close> by blast
               qed
               ultimately have "Li' |\<inter>| L1' = {||}" by auto
-              then have "\<forall>l |\<in>| Li'. m1 $ l = m0 $ l" using Cons(7) \<open>locs m0 i0' = Some Li'\<close> \<open>Li' |\<subseteq>| L1\<close> by blast
-              then show "locs m1 i0' = locs m0 i0'"
-                by (metis \<open>locs m0 i0' = Some Li'\<close> data.locs_same)
+              then have "\<forall>l |\<in>| Li'. m1 $ l = m0 $ l" using Cons(7) \<open>range m0 i0' = Some Li'\<close> \<open>Li' |\<subseteq>| L1\<close> by blast
+              then show "range m1 i0' = range m0 i0'"
+                by (metis \<open>range m0 i0' = Some Li'\<close> data.range_same)
 
-              from LL_def have "locs m0 (ls ! i'') = Some LL"
-                by (metis fempty_fsubsetI locs_def locs_safe_subset_same)   
+              from LL_def have "range m0 (ls ! i'') = Some LL"
+                by (metis fempty_fsubsetI range_def range_safe_subset_same)   
               then have "LL |\<inter>| Li'' = {||}"
-                using "1"(3) \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> \<open>xs $ j = Some j'\<close> ls_def \<open>l1 |\<in>| L1\<close>  Cons(9) \<open>locs m0 j' = Some Li''\<close>
+                using "1"(3) \<open>ls $ i'' = Some (ls ! i'')\<close> \<open>ls = xs\<close> \<open>xs $ j = Some j'\<close> ls_def \<open>l1 |\<in>| L1\<close>  Cons(9) \<open>range m0 j' = Some Li''\<close>
                 unfolding disjoined_def by blast
               then have "Li'' |\<inter>| L1' = {||}" using \<open>L1' |\<subseteq>| LL\<close> by auto
               then have "\<forall>l |\<in>| Li''. m1 $ l = m0 $ l"
-                using Cons(7) \<open>locs m0 j' = Some Li''\<close> \<open>Li'' |\<subseteq>| L1\<close> by blast
-              then show "locs m1 j' = locs m0 j'" by (metis \<open>locs m0 j' = Some Li''\<close> data.locs_same)
+                using Cons(7) \<open>range m0 j' = Some Li''\<close> \<open>Li'' |\<subseteq>| L1\<close> by blast
+              then show "range m1 j' = range m0 j'" by (metis \<open>range m0 j' = Some Li''\<close> data.range_same)
             qed
             ultimately show ?thesis
-              by (simp add: \<open>locs m1 i0' = Some L0\<close> \<open>locs m1 j' = Some L'\<close>)
+              by (simp add: \<open>range m1 i0' = Some L0\<close> \<open>range m1 j' = Some L'\<close>)
           next
             case 2
             show ?thesis using lem 2
@@ -3091,37 +3091,37 @@ next
             using Cons(2) i''_def ls_def \<open>ls $ i'' = Some (ls ! i'')\<close>
             by (cases "is1'", auto simp add:case_memory_def)
           moreover obtain LL
-            where "locs_safe (finsert l1 s) m0 (ls ! i'') = Some LL"
+            where "range_safe (finsert l1 s) m0 (ls ! i'') = Some LL"
               and "LL |\<subseteq>| L1"
-            using locs_safe_obtains_subset[OF Cons(4) ls_def] using "2"(1) True nth_mem by blast
-          then have "locs_safe s m0 (ls ! i'') = Some LL"
-            by (meson fsubset_finsertI locs_safe_subset_same)
+            using range_safe_obtains_subset[OF Cons(4) ls_def] using "2"(1) True nth_mem by blast
+          then have "range_safe s m0 (ls ! i'') = Some LL"
+            by (meson fsubset_finsertI range_safe_subset_same)
           moreover have "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> Cons(7) by auto
           moreover have "disjoined m0 LL"  using \<open>LL |\<subseteq>| L1\<close> Cons(9) by auto
           moreover obtain LL'
-            where "locs_safe s m1 (ls ! i'') = Some LL'"
+            where "range_safe s m1 (ls ! i'') = Some LL'"
               and "LL' |\<subseteq>| L"
-            using locs_safe_obtains_subset[OF Cons(11) m1_ls]
-            by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> fsubset_finsertI locs_safe_subset_same nth_in_set)
+            using range_safe_obtains_subset[OF Cons(11) m1_ls]
+            by (metis \<open>ls $ i'' = Some (ls ! i'')\<close> fsubset_finsertI range_safe_subset_same nth_in_set)
           moreover have "LL |-| L1' |\<inter>| L2' = {||}" using Cons(12)
             using \<open>LL |\<subseteq>| L1\<close> by blast
           ultimately have "disjoined m1 LL'" using Cons(1)[of "ls ! i''", OF _ Cons(3) _ Cons(5,6) _ Cons(8) _ Cons(10)]
             by simp
           then show ?thesis
-            using \<open>LL' |\<subseteq>| L\<close> "2"(2,3) True \<open>locs_safe s m1 (ls ! i'') = Some LL'\<close> disjoined_def locslocs xs_def by blast
+            using \<open>LL' |\<subseteq>| L\<close> "2"(2,3) True \<open>range_safe s m1 (ls ! i'') = Some LL'\<close> disjoined_def range_range xs_def by blast
         next
           case False
           moreover obtain Li'
-            where Li'_def: "locs_safe (finsert l1 s) m0 (ls ! i') = Some Li'"
-              and "Li' |\<subseteq>| L1" using 2(1) locs_safe_obtains_subset[OF Cons(4) ls_def, of "ls ! i'"]
+            where Li'_def: "range_safe (finsert l1 s) m0 (ls ! i') = Some Li'"
+              and "Li' |\<subseteq>| L1" using 2(1) range_safe_obtains_subset[OF Cons(4) ls_def, of "ls ! i'"]
             by auto
-          then have "locs m0 (ls ! i') = Some Li'"
-            unfolding locs_def using data.locs_safe_subset_same by blast
+          then have "range m0 (ls ! i') = Some Li'"
+            unfolding range_def using data.range_safe_subset_same by blast
           moreover obtain Li''
-            where Li''_def: "locs_safe (finsert l1 s) m0 (ls ! i'') = Some Li''"
-            using i''_def locs_safe_obtains_subset[OF Cons(4) ls_def, of "ls ! i''"] \<open>i'' < length ls\<close> by auto
-          then have "locs m0 (ls ! i'') = Some Li''"
-            unfolding locs_def using data.locs_safe_subset_same by blast
+            where Li''_def: "range_safe (finsert l1 s) m0 (ls ! i'') = Some Li''"
+            using i''_def range_safe_obtains_subset[OF Cons(4) ls_def, of "ls ! i''"] \<open>i'' < length ls\<close> by auto
+          then have "range m0 (ls ! i'') = Some Li''"
+            unfolding range_def using data.range_safe_subset_same by blast
           moreover have "ls $i' = Some (ls ! i')" by (simp add: "2"(1))
           ultimately have "Li' |\<inter>| Li'' = {||}"
             using Cons(9) Li''_def \<open>l1 |\<in>| L1\<close> ls_def \<open>ls $i'' = Some (ls ! i'')\<close>
@@ -3131,30 +3131,30 @@ next
             have "mlookup m0 is1' (ls ! i'') = Some l1'"
               using Cons(2) i''_def ls_def \<open>ls $ i'' = Some (ls ! i'')\<close>
               by (cases "is1'", auto simp add:case_memory_def)
-            moreover from Li''_def have "locs_safe s m0 (ls ! i'') = Some Li''"
-              using data.locs_safe_subset_same by blast
-            ultimately show ?thesis using mlookup_locs_subs[OF _ Cons(5)] by simp
+            moreover from Li''_def have "range_safe s m0 (ls ! i'') = Some Li''"
+              using data.range_safe_subset_same by blast
+            ultimately show ?thesis using mlookup_range_safe_subs[OF _ Cons(5)] by simp
           qed
           ultimately have "Li' |\<inter>| L1' = {||}" by blast
           then have *: "\<forall>x |\<in>| Li'. m1 $ x = m0 $ x" using Cons(7) \<open>Li' |\<subseteq>| L1\<close> by blast
-          then have "Li' = L'" using 2(2) locs_safe_same[OF Li'_def] by auto
+          then have "Li' = L'" using 2(2) range_safe_same[OF Li'_def] by auto
           moreover from \<open>Li' = L'\<close> have "x |\<in>| Li'" using 2(3) by simp
           ultimately have "m1 $ x = m0 $ x" using * by simp
-          moreover have "\<forall>l \<in> set xs. locs m1 l = locs m0 l"
+          moreover have "\<forall>l \<in> set xs. range m1 l = range m0 l"
           proof
             fix l assume "l \<in> set xs"
-            then have "l |\<in>| L'" using locs_safe_l_in_L[OF 2(2,3) xs_def] by simp
+            then have "l |\<in>| L'" using range_safe_l_in_L[OF 2(2,3) xs_def] by simp
             then obtain X
-              where "locs_safe (finsert l1 s) m1 l = Some X"
+              where "range_safe (finsert l1 s) m1 l = Some X"
                 and "X |\<subseteq>| L'"
-              using locs_safe_in_subs[OF 2(2)] by blast
+              using range_safe_in_subs[OF 2(2)] by blast
             moreover from \<open>X |\<subseteq>| L'\<close> have "X |\<subseteq>|Li'" using \<open>Li' = L'\<close> by simp
             then have "\<forall>x |\<in>| X. m1 $ x = m0 $ x" using * by auto
-            ultimately have "locs_safe (finsert l1 s) m1 l = locs_safe (finsert l1 s) m0 l"
-              using locs_safe_same[of "finsert l1 s" m1 l] by auto
-            then show "locs m1 l = locs m0 l"
-              by (metis \<open>locs_safe (finsert l1 s) m1 l = Some X\<close>
-                  fempty_fminus fempty_iff locs_def locs_safe_nin_same)
+            ultimately have "range_safe (finsert l1 s) m1 l = range_safe (finsert l1 s) m0 l"
+              using range_safe_same[of "finsert l1 s" m1 l] by auto
+            then show "range m1 l = range m0 l"
+              by (metis \<open>range_safe (finsert l1 s) m1 l = Some X\<close>
+                  fempty_fminus fempty_iff range_def range_safe_nin_same)
           qed
           moreover have "x |\<in>| L1" using "2"(3) \<open>Li' |\<subseteq>| L1\<close> \<open>Li' = L'\<close> by auto
           moreover have "m0 $ x = Some (mdata.Array xs)"
@@ -3165,10 +3165,10 @@ next
                     i \<noteq> j
                     \<and> xs $ i = Some i'
                     \<and> xs $ j = Some j'
-                    \<and> locs m1 i' = Some L
-                    \<and> locs m1 j' = Some L'
+                    \<and> range m1 i' = Some L
+                    \<and> range m1 j' = Some L'
                     \<longrightarrow> L |\<inter>| L' = {||})"
-            using disjoined_locs_disj[OF Cons(9), of x xs m1] by simp
+            using disjoined_range_disj[OF Cons(9), of x xs m1] by simp
           then show ?thesis using \<open>m1 $ x = Some (mdata.Array xs)\<close> by blast
         qed
       qed
@@ -3189,8 +3189,8 @@ abbreviation case_adata where "case_adata cd vf af \<equiv> adata.case_adata vf 
 global_interpretation a_data: data adata.Value adata.Array
   defines aread_safe = a_data.read_safe
       and aread = a_data.read
-      and alocs_safe = a_data.locs_safe
-      and alocs = a_data.locs
+      and arange_safe = a_data.range_safe
+      and arange = a_data.range
       and adisjoined = a_data.disjoined
   .
 
@@ -3687,8 +3687,8 @@ lemma read_safe_lookup_update_value:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "l1' < length m0"
       and "m1 = m0[l1':=mdata.Value v]"
-      and "alocs_safe s m0 l1 = Some L1"
-      and "alocs_safe s m0 l1' = Some L1'"
+      and "arange_safe s m0 l1 = Some L1"
+      and "arange_safe s m0 l1' = Some L1'"
       and "\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l"
       and "aread_safe s m0 l1 = Some cd0"
       and "adisjoined m0 L1"
@@ -3706,7 +3706,7 @@ next
     where ls_def: "m0 $ l1 = Some (mdata.Array ls)"
     by (cases is1',auto simp add:case_memory_def split:option.split_asm mdata.split_asm)
   then have m1_ls: "m1 $ l1 = Some (mdata.Array ls)"
-    by (metis Cons.prems(1,4) assms(3) data.locs_safe_subs data.noloops length_list_update alocs_safe_def
+    by (metis Cons.prems(1,4) assms(3) data.range_safe_subs data.noloops length_list_update arange_safe_def
         nth_list_update_neq nth_safe_length nth_safe_some)
   moreover from Cons(5) have "l1 |\<notin>| s" by auto
   ultimately have
@@ -3728,17 +3728,17 @@ next
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
         "fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. alocs_safe (finsert l1 s) m0 x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. arange_safe (finsert l1 s) m0 x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           ls
           (Some ({|l1|}))
         = Some L1"
         by (simp add: case_memory_def split:if_split_asm)
       then obtain LL
-        where LL_def: "alocs_safe (finsert l1 s) m0 (ls ! i') = Some LL"
+        where LL_def: "arange_safe (finsert l1 s) m0 (ls ! i') = Some LL"
           and "LL |\<subseteq>| L1"
         using ls_def True \<open>i'<length ls\<close> \<open>l1 |\<notin>| s\<close>
-        fold_some_subs[of "alocs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1 "ls ! i'"] by auto
-      moreover from Cons(2) have locs_the: "locations m0 (i # is1') l1 = Some (the (locations m0 (i # is1') l1))"
+        fold_some_subs[of "arange_safe (finsert l1 s) m0" ls "Some {|l1|}" L1 "ls ! i'"] by auto
+      moreover from Cons(2) have range_the: "locations m0 (i # is1') l1 = Some (the (locations m0 (i # is1') l1))"
         by (metis mlookup_locations_some option.sel)
       then obtain LLL
         where LLL_def: "locations m0 is1' (ls ! i') = Some LLL"
@@ -3757,7 +3757,7 @@ next
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
         where cd1'_def: "aread_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
-        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_read_safe
+        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.range_safe_read_safe
         by blast
 
       from Cons(10) have
@@ -3782,8 +3782,8 @@ next
             ])
         have "l1 |\<notin>| L1'"
           using Cons.prems(1,4,5) a_data.noloops by blast
-        then show "alocs_safe (finsert l1 s) m0 l1' = Some L1'" using Cons(6)
-          by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.locs_safe_nin_same)
+        then show "arange_safe (finsert l1 s) m0 l1' = Some L1'" using Cons(6)
+          by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.range_safe_nin_same)
       next
         from Cons(7) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by blast
       next
@@ -3831,48 +3831,48 @@ next
         using aupdate_nth_same[of i is1' "Value v" aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
-            (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+            (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
             ls
             (Some {|l1|})
         = Some L1" using ls_def
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain L
-        where L_def: "alocs_safe (finsert l1 s) m0 (ls ! i') = Some L"
+        where L_def: "arange_safe (finsert l1 s) m0 (ls ! i') = Some L"
           and "L |\<subseteq>| L1"
-        using fold_some_subs[of "alocs_safe (finsert l1 s) m0"]
+        using fold_some_subs[of "arange_safe (finsert l1 s) m0"]
         by (meson \<open>ls ! i' \<in> set ls\<close>)
       moreover have "\<forall>l|\<in>|L. m1 $ l = m0 $ l"
       proof -
-        from L_def have "alocs m0 (ls ! i') = Some L"
-          unfolding alocs_def alocs_safe_def data.locs_def
-          using data.locs_safe_subset_same by blast
+        from L_def have "arange m0 (ls ! i') = Some L"
+          unfolding arange_def arange_safe_def data.range_def
+          using data.range_safe_subset_same by blast
         moreover have "ls ! i'' \<in> set ls" by (simp add: \<open>i'' < length ls\<close>)
-        with * have "\<exists>L'. alocs_safe (finsert l1 s) m0 (ls ! i'') = Some L'"
-          using fold_some_subs[of "alocs_safe (finsert l1 s) m0"]
+        with * have "\<exists>L'. arange_safe (finsert l1 s) m0 (ls ! i'') = Some L'"
+          using fold_some_subs[of "arange_safe (finsert l1 s) m0"]
         by (meson) 
-        then obtain L' where L'_def: "alocs_safe s m0 (ls ! i'') = Some L'"
-          using a_data.locs_safe_subset_same by blast
-        then have "alocs m0 (ls ! i'') = Some L'"
-          unfolding alocs_def alocs_safe_def data.locs_def
-          using data.locs_safe_subset_same by blast
+        then obtain L' where L'_def: "arange_safe s m0 (ls ! i'') = Some L'"
+          using a_data.range_safe_subset_same by blast
+        then have "arange m0 (ls ! i'') = Some L'"
+          unfolding arange_def arange_safe_def data.range_def
+          using data.range_safe_subset_same by blast
         moreover from \<open>ls ! i' \<in> set ls\<close> have "ls $ i' = Some (ls ! i')"
           unfolding nth_safe_def using \<open>i' < length ls\<close> by simp
         moreover have "ls $ i'' = Some (ls ! i'')"
           unfolding nth_safe_def by (simp add: \<open>i'' < length ls\<close>)
         moreover have "l1 |\<in>| L1"
-          using Cons.prems(4) a_data.locs_safe_subs by auto
+          using Cons.prems(4) a_data.range_safe_subs by auto
         ultimately have "(L |\<inter>| L' = {||})"
           using Cons(9) unfolding a_data.disjoined_def
           using ls_def `i'' \<noteq> i'` by blast
         moreover have "mlookup m0 is1' (ls ! i'') = Some l1'"
           using Cons(2) ls_def \<open>to_nat i = Some i''\<close>
           using \<open>ls $ i'' = Some (ls ! i'')\<close> mlookup_obtain_nempty2 by fastforce
-        then have "L1' |\<subseteq>| L'" using a_data.mlookup_locs_subs[OF _ Cons(6) L'_def] L'_def by simp
+        then have "L1' |\<subseteq>| L'" using a_data.mlookup_range_safe_subs[OF _ Cons(6) L'_def] L'_def by simp
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(7) by auto
       qed
       ultimately have "aread_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
-        using a_data.read_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
+        using a_data.read_safe_range_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
   qed
@@ -3883,9 +3883,9 @@ lemma read_safe_lookup_update:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "mlookup m0 is2 l2 = Some l2'"
       and "m1 $ l1' = m0 $ l2'"
-      and "alocs_safe s m0 l1 = Some L1"
-      and "alocs_safe s m0 l1' = Some L1'"
-      and "alocs_safe s2 m0 l2 = Some L2"
+      and "arange_safe s m0 l1 = Some L1"
+      and "arange_safe s m0 l1' = Some L1'"
+      and "arange_safe s2 m0 l2 = Some L2"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2. m1 $ l = m0 $ l)"
       and "aread_safe s m0 l1 = Some cd1"
@@ -3898,20 +3898,20 @@ proof (induction is1 arbitrary:l1 cd cd1 L1 s)
   case Nil
   moreover have "mlookup m1 is2 l2 = Some l2'"
   proof -
-    from Nil have "l2' |\<in>| L2" using a_data.locs_safe_mlookup by blast
+    from Nil have "l2' |\<in>| L2" using a_data.range_safe_mlookup by blast
     then have "m1 $ l2' = m0 $ l2'" using Nil(8) by simp
     moreover from Nil(2) obtain L where "locations m0 is2 l2 = Some L"
       using mlookup_locations_some by blast
-    then have "L |\<subseteq>| L2" using a_data.locs_safe_locations[OF Nil(6)] by simp
+    then have "L |\<subseteq>| L2" using a_data.range_safe_locations[OF Nil(6)] by simp
     then have "\<forall>l|\<in>|L. m1 $ l = m0 $ l" using Nil(8) by blast
     ultimately show ?thesis
       using mlookup_same_locations[OF Nil(2) `locations m0 is2 l2 = Some L`] by auto
   qed
   moreover from Nil have "m1$l1 = m0$l2'" by simp
-  then have "m1$l2' = m1$l1" using Nil a_data.locs_safe_mlookup by metis
+  then have "m1$l2' = m1$l1" using Nil a_data.range_safe_mlookup by metis
   then have "m1 $ l1' = m1 $ l2'" by (metis bind.bind_lunit calculation(1) mlookup.simps(1))
   moreover have "aread_safe s2 m1 l2 = Some cd2"
-    using a_data.read_safe_locs_safe[OF Nil(10,6,8)] .
+    using a_data.read_safe_range_safe[OF Nil(10,6,8)] .
   ultimately show ?case using separate_memory[of m1 "[]" l1 l1' is2 l2 l2' s cd s2 cd2] by auto
 next
   case (Cons i is1')
@@ -3920,8 +3920,8 @@ next
     where ls_def: "m0 $ l1 = Some (mdata.Array ls)"
     by (cases is1',auto simp add:case_memory_def split:option.split_asm mdata.split_asm)
   then have m1_ls: "m1 $ l1 = Some (mdata.Array ls)"
-    by (metis Cons.prems(1,4,7) assms(5) a_data.locs_safe_subs fminus_iff a_data.noloops
-        a_data.locs_safe_in_subs)
+    by (metis Cons.prems(1,4,7) assms(5) a_data.range_safe_subs fminus_iff a_data.noloops
+        a_data.range_safe_in_subs)
   moreover from Cons(13) have "l1 |\<notin>| s" by auto
   ultimately have
     *: "Some cd = those (map (aread_safe (finsert l1 s) m1) ls) \<bind> Some \<circ> Array"
@@ -3952,16 +3952,16 @@ next
       case True
       from Cons(5) \<open>l1 |\<notin>| s\<close> ls_def have
         "fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. alocs_safe (finsert l1 s) m0 x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. arange_safe (finsert l1 s) m0 x \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           ls
           (Some ({|l1|}))
         = Some L1"
         by (simp add: case_memory_def split:if_split_asm)
       then obtain LL
-        where LL_def: "alocs_safe (finsert l1 s) m0 (ls ! i') = Some LL"
+        where LL_def: "arange_safe (finsert l1 s) m0 (ls ! i') = Some LL"
           and "LL |\<subseteq>| L1"
         using ls_def True \<open>i'<length ls\<close> \<open>l1 |\<notin>| s\<close>
-        fold_some_subs[of "alocs_safe (finsert l1 s) m0" ls "Some {|l1|}" L1 "ls ! i'"] by auto
+        fold_some_subs[of "arange_safe (finsert l1 s) m0" ls "Some {|l1|}" L1 "ls ! i'"] by auto
 
       from Cons(2) obtain L3 where L3_def: "locations m0 (i # is1') l1 = Some L3"
         using mlookup_locations_some by blast
@@ -3982,7 +3982,7 @@ next
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain cd1'
         where cd1'_def: "aread_safe (finsert l1 s) m0 (ls!i') = Some cd1'"
-        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.locs_safe_read_safe
+        using \<open>l1 |\<notin>| s\<close> ls_def True \<open>(ls ! i') \<in> set ls\<close> LL_def a_data.range_safe_read_safe
         by blast
 
       from Cons(13) have
@@ -4009,8 +4009,8 @@ next
             cd2'_def])
         have "l1 |\<notin>| L1'"
           using Cons.prems(1,4,5) a_data.noloops by blast
-        then show "alocs_safe (finsert l1 s) m0 l1' = Some L1'" using Cons(6)
-          by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.locs_safe_nin_same)
+        then show "arange_safe (finsert l1 s) m0 l1' = Some L1'" using Cons(6)
+          by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.range_safe_nin_same)
       next
         from Cons(8) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by blast
       next
@@ -4063,36 +4063,36 @@ next
         using aupdate_nth_same[of i is1' cd' aa as i'' i'] as_def by force
       moreover from Cons(5) have
         *:"fold
-            (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+            (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
             ls
             (Some {|l1|})
         = Some L1" using ls_def
         by (auto simp add:case_memory_def split:if_split_asm)
       then obtain L
-        where L_def: "alocs_safe (finsert l1 s) m0 (ls ! i') = Some L"
+        where L_def: "arange_safe (finsert l1 s) m0 (ls ! i') = Some L"
           and "L |\<subseteq>| L1"
-        using fold_some_subs[of "alocs_safe (finsert l1 s) m0"]
+        using fold_some_subs[of "arange_safe (finsert l1 s) m0"]
         by (meson \<open>ls ! i' \<in> set ls\<close>)
       moreover have "\<forall>l|\<in>|L. m1 $ l = m0 $ l"
       proof -
-        from L_def have "alocs m0 (ls ! i') = Some L"
-          unfolding alocs_def alocs_safe_def data.locs_def
-          using data.locs_safe_subset_same by blast
+        from L_def have "arange m0 (ls ! i') = Some L"
+          unfolding arange_def arange_safe_def data.range_def
+          using data.range_safe_subset_same by blast
         moreover have "ls ! i'' \<in> set ls" by (simp add: \<open>i'' < length ls\<close>)
-        with * have "\<exists>L'. alocs_safe (finsert l1 s) m0 (ls ! i'') = Some L'"
-          using fold_some_subs[of "alocs_safe (finsert l1 s) m0"]
+        with * have "\<exists>L'. arange_safe (finsert l1 s) m0 (ls ! i'') = Some L'"
+          using fold_some_subs[of "arange_safe (finsert l1 s) m0"]
         by (meson) 
-        then obtain L' where L'_def: "alocs_safe s m0 (ls ! i'') = Some L'"
-          using a_data.locs_safe_subset_same by blast
-        then have "alocs m0 (ls ! i'') = Some L'"
-          unfolding alocs_def alocs_safe_def data.locs_def
-          using data.locs_safe_subset_same by blast
+        then obtain L' where L'_def: "arange_safe s m0 (ls ! i'') = Some L'"
+          using a_data.range_safe_subset_same by blast
+        then have "arange m0 (ls ! i'') = Some L'"
+          unfolding arange_def arange_safe_def data.range_def
+          using data.range_safe_subset_same by blast
         moreover from \<open>ls ! i' \<in> set ls\<close> have "ls $ i' = Some (ls ! i')"
           unfolding nth_safe_def using \<open>i' < length ls\<close> by simp
         moreover have "ls $ i'' = Some (ls ! i'')"
           unfolding nth_safe_def by (simp add: \<open>i'' < length ls\<close>)
         moreover have "l1 |\<in>| L1"
-          using Cons.prems(4) a_data.locs_safe_subs by auto
+          using Cons.prems(4) a_data.range_safe_subs by auto
         ultimately have "(L |\<inter>| L' = {||})"
           using Cons(12) unfolding a_data.disjoined_def
           using ls_def `i'' \<noteq> i'` by blast
@@ -4100,31 +4100,31 @@ next
           using Cons(2) ls_def \<open>to_nat i = Some i''\<close>
           using \<open>ls $ i'' = Some (ls ! i'')\<close> mlookup_obtain_nempty2 by fastforce
         thm Cons(6)
-        then have "L1' |\<subseteq>| L'" using a_data.mlookup_locs_subs[OF _ Cons(6) L'_def] L'_def by simp
+        then have "L1' |\<subseteq>| L'" using a_data.mlookup_range_safe_subs[OF _ Cons(6) L'_def] L'_def by simp
         ultimately have "L |\<inter>| L1' = {||}" by blast
         then show ?thesis using `L |\<subseteq>| L1` Cons(8) by auto
       qed
       ultimately have "aread_safe (finsert l1 s) m1 (ls ! i') = Some (as ! i')"
-        using a_data.read_safe_locs_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
+        using a_data.read_safe_range_safe[of "finsert l1 s" m0 "ls!i'" _ L m1] by blast
       then show ?thesis using \<open>i' < length ls\<close> by auto
     qed
   qed
   ultimately show ?case by (simp add:map_some_those_some)
 qed
 
-lemma locs_safe_update_some:
+lemma range_safe_update_some:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "alocs_safe s m0 l1 = Some L1"
-      and "alocs_safe s m0 l1' = Some L1'"
-      and "alocs_safe s2 m0 l2' = Some L2'"
+      and "arange_safe s m0 l1 = Some L1"
+      and "arange_safe s m0 l1' = Some L1'"
+      and "arange_safe s2 m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "adisjoined m0 L1"
       and "s |\<inter>| L2' = {||}"
       and "the (locations m0 is1 l1) |\<inter>| L2' = {||}"
       and "l1' |\<notin>| L2'"
-    shows "\<exists>L. alocs_safe s m1 l1 = Some L"
+    shows "\<exists>L. arange_safe s m1 l1 = Some L"
   using assms
 proof (induction is1 arbitrary:l1 L1 s)
   case Nil
@@ -4139,7 +4139,7 @@ proof (induction is1 arbitrary:l1 L1 s)
     case None
     then show ?thesis
       by (metis \<open>m1 $ l1 = m0 $ l2'\<close> assms(5) mlookup.simps(1) not_None_eq
-          a_data.mlookup_locs_some)
+          a_data.mlookup_range_safe_some)
   next
     case (Some a)
     then show ?thesis
@@ -4148,34 +4148,34 @@ proof (induction is1 arbitrary:l1 L1 s)
       then show ?thesis using \<open>l1 |\<notin>| s\<close> Some by (auto simp add:case_memory_def)
     next
       case (Array xs)
-      moreover have "\<forall>x \<in> set xs. alocs_safe (finsert l1 s) m1 x  \<noteq> None "
+      moreover have "\<forall>x \<in> set xs. arange_safe (finsert l1 s) m1 x  \<noteq> None "
       proof
         fix x
         assume "x \<in> set xs"
         moreover have "fold
-          (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l2' s2) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+          (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l2' s2) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
           xs (Some {|l2'|}) = Some L2'"
         using Nil(5) \<open>l2' |\<notin>| s2\<close> \<open>m1 $ l1 = m0 $ l2'\<close> Some Array
         by (auto simp add:case_memory_def split:option.split_asm)
         ultimately obtain X
-          where "alocs_safe (finsert l2' s2) m0 x = Some X"
+          where "arange_safe (finsert l2' s2) m0 x = Some X"
             and "X |\<subseteq>| L2'"
-          by (metis Array Some \<open>m1 $ l1 = m0 $ l2'\<close> assms(5) a_data.locs_safe_obtains_subset)
-        then have "alocs_safe (finsert l2' s2) m1 x = Some X"
-          using Nil(7) a_data.locs_safe_same[of "(finsert l2' s2)" m0 x X m1]
+          by (metis Array Some \<open>m1 $ l1 = m0 $ l2'\<close> assms(5) a_data.range_safe_obtains_subset)
+        then have "arange_safe (finsert l2' s2) m1 x = Some X"
+          using Nil(7) a_data.range_safe_same[of "(finsert l2' s2)" m0 x X m1]
           by blast
         moreover have "\<forall>l |\<in>| (finsert l1 s) - (finsert l2' s2). l |\<notin>| X"
         proof -
           have "l1 |\<notin>| X" using Nil.prems(11) \<open>X |\<subseteq>| L2'\<close> \<open>l1 = l1'\<close> by auto
           then show ?thesis using Nil(9) using \<open>X |\<subseteq>| L2'\<close> by blast
         qed
-        ultimately have "alocs_safe (finsert l1 s) m1 x = Some X" using a_data.locs_safe_nin_same[of "(finsert l2' s2)" m1 x X] by blast
-        then show "alocs_safe (finsert l1 s) m1 x \<noteq> None" by simp
+        ultimately have "arange_safe (finsert l1 s) m1 x = Some X" using a_data.range_safe_nin_same[of "(finsert l2' s2)" m1 x X] by blast
+        then show "arange_safe (finsert l1 s) m1 x \<noteq> None" by simp
       qed
       then have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l1|}) \<noteq> None"
-      using fold_f_set_some[of _ "alocs_safe (finsert l1 s) m1"] by blast
+      using fold_f_set_some[of _ "arange_safe (finsert l1 s) m1"] by blast
       ultimately show ?thesis using Some \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
     qed
   qed
@@ -4188,7 +4188,7 @@ next
   proof (cases "m1 $ l1")
     case None
     then show ?thesis
-      by (metis Cons.prems(1,3,4,6) fminus_iff mlookup_obtain_nempty2 option.discI a_data.locs_safe_subs
+      by (metis Cons.prems(1,3,4,6) fminus_iff mlookup_obtain_nempty2 option.discI a_data.range_safe_subs
           a_data.noloops)
   next
     case (Some a)
@@ -4200,33 +4200,33 @@ next
       moreover have "l1 |\<notin>| L1'"
         using Cons.prems(1,3,4) a_data.noloops by blast
       ultimately show ?thesis using Cons(7)
-        by (metis Cons.prems(3) Some fminusI mdata.distinct(1) option.inject a_data.locs_safe_subs)
+        by (metis Cons.prems(3) Some fminusI mdata.distinct(1) option.inject a_data.range_safe_subs)
     next
       case (Array xs)
-      moreover have "\<forall>x \<in> set xs. alocs_safe (finsert l1 s) m1 x \<noteq> None"
+      moreover have "\<forall>x \<in> set xs. arange_safe (finsert l1 s) m1 x \<noteq> None"
       proof
         fix x assume "x \<in> set xs"
         then obtain i' where x_def: "xs $ i' = Some x"
           by (meson set_nth_some)
         have m1_ls: "m0 $ l1 = Some (mdata.Array xs)"
-              by (metis Array Cons.prems(1,3,4,6) Some data.locs_safe_subs data.noloops fminus_iff alocs_safe_def)
+              by (metis Array Cons.prems(1,3,4,6) Some data.range_safe_subs data.noloops fminus_iff arange_safe_def)
         then obtain j' l'' where "to_nat i = Some j'" and l''_def: "xs $ j' = Some l''" and *: "mlookup m0 is1 l'' = Some l1'"
           using mlookup_obtain_nempty2[OF Cons(2)]
           by (metis mdata.inject(2) option.inject)
 
-        obtain L' where L'_def: "alocs_safe (finsert l1 s) m0 l'' = Some L'" and "L' |\<subseteq>| L1"
-            by (meson Cons.prems(3) \<open>xs $ j' = Some l''\<close> m1_ls nth_in_set a_data.locs_safe_obtains_subset)
+        obtain L' where L'_def: "arange_safe (finsert l1 s) m0 l'' = Some L'" and "L' |\<subseteq>| L1"
+            by (meson Cons.prems(3) \<open>xs $ j' = Some l''\<close> m1_ls nth_in_set a_data.range_safe_obtains_subset)
 
         from Cons(2) obtain LL where LL_def: "locations m0 (i # is1) l1 = Some LL"
           using mlookup_locations_some by blast
-        show "alocs_safe (finsert l1 s) m1 x \<noteq> None"
+        show "arange_safe (finsert l1 s) m1 x \<noteq> None"
         proof (cases "i' = j'")
           case True
           then have "x = l''"
             using \<open>xs $ i' = Some x\<close> \<open>xs $ j' = Some l''\<close> by auto
           moreover have "l1 |\<notin>| L1'"
             using Cons.prems(1,3,4) a_data.noloops by blast
-          with Cons(5) have "alocs_safe (finsert l1 s) m0 l1' = Some L1'" using a_data.locs_safe_nin_same[of s m0 l1' L1' "finsert l1 s"] by blast
+          with Cons(5) have "arange_safe (finsert l1 s) m0 l1' = Some L1'" using a_data.range_safe_nin_same[of s m0 l1' L1' "finsert l1 s"] by blast
           moreover from Cons(7) have "\<forall>l|\<in>|L' |-| L1'. m1 $ l = m0 $ l" using \<open>L' |\<subseteq>| L1\<close> by blast
           moreover from Cons(9) have "adisjoined m0 L'" using \<open>L' |\<subseteq>| L1\<close> by auto
           moreover from Cons(2,10,11) have "finsert l1 s |\<inter>| L2' = {||}"
@@ -4246,53 +4246,53 @@ next
         next
           case False
           moreover have "l1 |\<in>|L1"
-            using Cons.prems(3) a_data.locs_safe_subs by auto
-          moreover obtain L where L_def: "alocs_safe (finsert l1 s) m0 x = Some L" and "L |\<subseteq>| L1" using Cons(4) Some m1_ls \<open>l1 |\<notin>| s\<close>
-            by (metis \<open>x \<in> set xs\<close> data.locs_safe_obtains_subset alocs_safe_def)
-          then have "alocs m0 x = Some L" unfolding a_data.locs_def
-            using a_data.locs_safe_subset_same by blast
-          moreover have "L1' |\<subseteq>| L'" using Cons(5) L'_def a_data.mlookup_locs_subs[OF *, of s _ "(finsert l1 s)"] by blast
-          moreover from L'_def have "alocs m0 l'' = Some L'" unfolding a_data.locs_def
-            using a_data.locs_safe_subset_same by blast
+            using Cons.prems(3) a_data.range_safe_subs by auto
+          moreover obtain L where L_def: "arange_safe (finsert l1 s) m0 x = Some L" and "L |\<subseteq>| L1" using Cons(4) Some m1_ls \<open>l1 |\<notin>| s\<close>
+            by (metis \<open>x \<in> set xs\<close> data.range_safe_obtains_subset arange_safe_def)
+          then have "arange m0 x = Some L" unfolding a_data.range_def
+            using a_data.range_safe_subset_same by blast
+          moreover have "L1' |\<subseteq>| L'" using Cons(5) L'_def a_data.mlookup_range_safe_subs[OF *, of s _ "(finsert l1 s)"] by blast
+          moreover from L'_def have "arange m0 l'' = Some L'" unfolding a_data.range_def
+            using a_data.range_safe_subset_same by blast
           ultimately have "L |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.disjoined_def using m1_ls x_def l''_def by blast
-          then show ?thesis using \<open>L |\<subseteq>| L1\<close> Cons(7) a_data.locs_safe_same[of "finsert l1 s" m0 x L m1]
+          then show ?thesis using \<open>L |\<subseteq>| L1\<close> Cons(7) a_data.range_safe_same[of "finsert l1 s" m0 x L m1]
             L_def by blast
         qed
       qed
       then have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l1|}) \<noteq> None"
-      using fold_f_set_some[of _ "alocs_safe (finsert l1 s) m1"] by blast
+      using fold_f_set_some[of _ "arange_safe (finsert l1 s) m1"] by blast
       ultimately show ?thesis using Some \<open>l1 |\<notin>| s\<close> by (auto simp add:case_memory_def)
     qed
   qed
 qed
 
-lemma locs_update_some:
+lemma range_update_some:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "alocs m0 l1 = Some L1"
-      and "alocs m0 l1' = Some L1'"
-      and "alocs m0 l2' = Some L2'"
+      and "arange m0 l1 = Some L1"
+      and "arange m0 l1' = Some L1'"
+      and "arange m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "adisjoined m0 L1"
       and "the (locations m0 is1 l1) |\<inter>| L2' = {||}"
       and "l1' |\<notin>| L2'"
-    shows "\<exists>L. alocs m1 l1 = Some L"
-  using assms unfolding a_data.locs_def
-  using locs_safe_update_some by blast
+    shows "\<exists>L. arange m1 l1 = Some L"
+  using assms unfolding a_data.range_def
+  using range_safe_update_some by blast
 
-lemma locs_safe_update_subs:
+lemma range_safe_update_subs:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "alocs_safe s m0 l1 = Some L1"
-      and "alocs_safe s m0 l1' = Some L1'"
-      and "alocs_safe s2 m0 l2' = Some L2'"
+      and "arange_safe s m0 l1 = Some L1"
+      and "arange_safe s m0 l1' = Some L1'"
+      and "arange_safe s2 m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "adisjoined m0 L1"
-      and "alocs_safe s m1 l1 = Some L"
+      and "arange_safe s m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
   using assms
 proof (induction is1 arbitrary:l1 L L1 s)
@@ -4307,14 +4307,14 @@ proof (induction is1 arbitrary:l1 L L1 s)
   proof (cases "m1 $ l1")
     case None
     then show ?thesis
-      by (metis Nil.prems(9) data.locs_safe_obtains alocs_safe_def option.distinct(1))
+      by (metis Nil.prems(9) data.range_safe_obtains arange_safe_def option.distinct(1))
   next
     case (Some a)
     then show ?thesis
     proof (cases a)
       case (Value v)
       then have "L = {|l1|}" using Nil(9) \<open>l1 |\<notin>| s\<close> Some by (auto simp add:case_memory_def)
-      moreover have "l1 |\<in>| L1" using Nil(3) using a_data.locs_safe_subs[of s m0 l1 L1] by simp
+      moreover have "l1 |\<in>| L1" using Nil(3) using a_data.range_safe_subs[of s m0 l1 L1] by simp
       ultimately show ?thesis by simp
     next
       case (Array xs)
@@ -4322,38 +4322,38 @@ proof (induction is1 arbitrary:l1 L L1 s)
       proof
         fix x assume "x |\<in>| L"
         moreover have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l1|}) = Some L"
           using Nil(9) using \<open>l1 |\<notin>| s\<close> Some Array by (auto simp add:case_memory_def)
         ultimately consider
           (1) "x = l1"
-        | (2) n L'' where "n < length xs \<and> alocs_safe (finsert l1 s) m1 (xs ! n) = Some L'' \<and> x |\<in>| L''"
-          using fold_union_in[of "alocs_safe (finsert l1 s) m1"] by blast
+        | (2) n L'' where "n < length xs \<and> arange_safe (finsert l1 s) m1 (xs ! n) = Some L'' \<and> x |\<in>| L''"
+          using fold_union_in[of "arange_safe (finsert l1 s) m1"] by blast
         then show "x |\<in>| L1 |\<union>| L2'"
         proof cases
           case 1
-          moreover have "l1 |\<in>| L1" using Nil(3) using a_data.locs_safe_subs[of s m0 l1 L1] by simp
+          moreover have "l1 |\<in>| L1" using Nil(3) using a_data.range_safe_subs[of s m0 l1 L1] by simp
           ultimately show ?thesis by simp
         next
           case 2
           moreover have "L'' |\<subseteq>| L2'"
           proof -
             have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l2' s2) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l2' s2) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l2'|}) = Some L2'"
               using Nil(5) \<open>l2' |\<notin>| s2\<close> \<open>m1 $ l1 = m0 $ l2'\<close> Some Array
               by (auto simp add:case_memory_def split:option.split_asm)
             then obtain X
-              where "alocs_safe (finsert l2' s2) m0 (xs ! n) = Some X"
+              where "arange_safe (finsert l2' s2) m0 (xs ! n) = Some X"
                 and "X |\<subseteq>| L2'" using fold_some_subs
               by (metis "2" nth_mem)
-            then have "alocs_safe (finsert l2' s2) m1 (xs ! n) = Some X"
-              using Nil(7) a_data.locs_safe_same[of "(finsert l2' s2)" m0 "(xs ! n)" X m1]
+            then have "arange_safe (finsert l2' s2) m1 (xs ! n) = Some X"
+              using Nil(7) a_data.range_safe_same[of "(finsert l2' s2)" m0 "(xs ! n)" X m1]
               by blast
-            then have "alocs_safe (finsert l1 s) m1 (xs ! n) = Some X"
-              using "2" a_data.locslocs by blast
+            then have "arange_safe (finsert l1 s) m1 (xs ! n) = Some X"
+              using "2" a_data.range_range by blast
             then show ?thesis
-              using \<open>X |\<subseteq>| L2'\<close> a_data.locslocs "2" by auto
+              using \<open>X |\<subseteq>| L2'\<close> a_data.range_range "2" by auto
           qed
           ultimately show ?thesis by blast
         qed
@@ -4369,7 +4369,7 @@ next
   proof (cases "m1 $ l1")
     case None
     then show ?thesis
-      by (metis Cons.prems(9) option.distinct(1) a_data.read_safe_cases a_data.locs_safe_read_safe)
+      by (metis Cons.prems(9) option.distinct(1) a_data.read_safe_cases a_data.range_safe_read_safe)
   next
     case (Some a)
     then show ?thesis
@@ -4378,28 +4378,28 @@ next
       moreover obtain xs where "m0$l1 = Some (mdata.Array xs)"
         using mlookup_obtain_nempty2[OF Cons(2)] by auto
       moreover have "l1 |\<in>| L" using Cons(4)
-        using Cons.prems(9) a_data.locs_safe_subs by auto
+        using Cons.prems(9) a_data.range_safe_subs by auto
       moreover have "l1 |\<notin>| L1'"
         using Cons.prems(1,3,4) a_data.noloops by blast
       ultimately show ?thesis using Cons(7)
-        by (metis Cons.prems(3) Some fminusI mdata.distinct(1) option.inject a_data.locs_safe_subs)
+        by (metis Cons.prems(3) Some fminusI mdata.distinct(1) option.inject a_data.range_safe_subs)
     next
       case (Array xs)
       then have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m1 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l1|}) = Some L"
           using Cons(10) using \<open>l1 |\<notin>| s\<close> Some by (auto simp add:case_memory_def)
-      moreover have "\<forall>x \<in> set xs. \<forall>L. alocs_safe (finsert l1 s) m1 x = Some L \<longrightarrow> L |\<subseteq>| L1 |\<union>| L2'"
+      moreover have "\<forall>x \<in> set xs. \<forall>L. arange_safe (finsert l1 s) m1 x = Some L \<longrightarrow> L |\<subseteq>| L1 |\<union>| L2'"
       proof
         fix x assume "x \<in> set xs"
         then obtain i' where "xs $ i' = Some x"
           by (meson set_nth_some)
         have m1_ls: "m0 $ l1 = Some (mdata.Array xs)"
-              by (metis Array Cons.prems(1,3,4,6) Some data.locs_safe_subs data.noloops fminus_iff alocs_safe_def)
+              by (metis Array Cons.prems(1,3,4,6) Some data.range_safe_subs data.noloops fminus_iff arange_safe_def)
         then obtain j' l'' where "to_nat i = Some j'" and "xs $ j' = Some l''" and *: "mlookup m0 is1 l'' = Some l1'"
           using mlookup_obtain_nempty2[OF Cons(2)]
           by (metis mdata.inject(2) option.inject)
-        show "\<forall>L. alocs_safe (finsert l1 s) m1 x = Some L \<longrightarrow> L |\<subseteq>| L1 |\<union>| L2'"
+        show "\<forall>L. arange_safe (finsert l1 s) m1 x = Some L \<longrightarrow> L |\<subseteq>| L1 |\<union>| L2'"
         proof (cases "i' = j'")
           case True
           then have "x = l''"
@@ -4407,22 +4407,22 @@ next
           show ?thesis
           proof (rule allI, rule impI)
             fix L
-            assume L_def: "alocs_safe (finsert l1 s) m1 x = Some L"
-            obtain LL where LL_def: "alocs_safe (finsert l1 s) m0 l'' = Some LL" and "LL |\<subseteq>| L1" using Cons(4) *
-              by (metis True \<open>x \<in> set xs\<close> \<open>xs $ i' = Some x\<close> \<open>xs $ j' = Some l''\<close> data.locs_safe_obtains_subset alocs_safe_def m1_ls option.inject)
+            assume L_def: "arange_safe (finsert l1 s) m1 x = Some L"
+            obtain LL where LL_def: "arange_safe (finsert l1 s) m0 l'' = Some LL" and "LL |\<subseteq>| L1" using Cons(4) *
+              by (metis True \<open>x \<in> set xs\<close> \<open>xs $ i' = Some x\<close> \<open>xs $ j' = Some l''\<close> data.range_safe_obtains_subset arange_safe_def m1_ls option.inject)
             moreover have "L |\<subseteq>| LL |\<union>| L2'"
             proof (rule Cons(1)[OF * Cons(3) LL_def _ Cons(6) _ Cons(8)])
               have "l1 |\<notin>| L1'"
-                by (metis Cons.prems(1,3,4) data.noloops alocs_safe_def)
-              with Cons(5) show "alocs_safe (finsert l1 s) m0 l1' = Some L1'" using \<open>l1 |\<notin>| L1'\<close>
-                by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.locs_safe_nin_same)
+                by (metis Cons.prems(1,3,4) data.noloops arange_safe_def)
+              with Cons(5) show "arange_safe (finsert l1 s) m0 l1' = Some L1'" using \<open>l1 |\<notin>| L1'\<close>
+                by (smt (verit, best) finsertE fminusD1 fminusD2 a_data.range_safe_nin_same)
             next
               from Cons(7) show "\<forall>l|\<in>|LL |-| L1'. m1 $ l = m0 $ l" using \<open>LL |\<subseteq>| L1\<close> by auto
             next
               from Cons(9) show "adisjoined m0 LL"
                 using calculation(2) by auto
             next
-              from L_def show "alocs_safe (finsert l1 s) m1 l'' = Some L" using \<open>x = l''\<close> by simp
+              from L_def show "arange_safe (finsert l1 s) m1 l'' = Some L" using \<open>x = l''\<close> by simp
             qed
             ultimately show "L |\<subseteq>| L1 |\<union>| L2'" by auto
           qed
@@ -4431,51 +4431,51 @@ next
           show ?thesis
           proof (rule allI, rule impI)
             fix L
-            assume L_def: "alocs_safe (finsert l1 s) m1 x = Some L"
+            assume L_def: "arange_safe (finsert l1 s) m1 x = Some L"
             moreover from Cons(4) have "fold
-              (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+              (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l1 s) m0 x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
               xs (Some {|l1|}) = Some L1" using m1_ls \<open>l1 |\<notin>| s\<close> by (simp add:case_memory_def)
-            then obtain L' where L'_def: "alocs_safe (finsert l1 s) m0 x = Some L'" and "L' |\<subseteq>| L1"
-              by (metis Cons.prems(3) \<open>x \<in> set xs\<close> data.locs_safe_obtains_subset alocs_safe_def m1_ls)
+            then obtain L' where L'_def: "arange_safe (finsert l1 s) m0 x = Some L'" and "L' |\<subseteq>| L1"
+              by (metis Cons.prems(3) \<open>x \<in> set xs\<close> data.range_safe_obtains_subset arange_safe_def m1_ls)
             moreover have "L = L'"
             proof -
               have "l1|\<in>|L1"
-                by (metis Cons.prems(3) data.locs_safe_subs alocs_safe_def)
-              moreover have "alocs m0 x = Some L'" using L'_def
-                by (metis bot.extremum a_data.locs_def a_data.locs_safe_subset_same)
-              moreover obtain LL where LL_def: "alocs_safe (finsert l1 s) m0 l'' = Some LL"
-                by (meson Cons.prems(3) \<open>xs $ j' = Some l''\<close> m1_ls nth_in_set a_data.locs_safe_obtains_subset)
-              then have "L1' |\<subseteq>| LL" using Cons(5) a_data.mlookup_locs_subs[OF *, of s _ "(finsert l1 s)"] by blast
-              moreover from LL_def have "alocs m0 l'' = Some LL"
-                by (metis all_not_fin_conv data.locs_safe_nin_same fempty_fminus alocs_safe_def a_data.locs_def)
+                by (metis Cons.prems(3) data.range_safe_subs arange_safe_def)
+              moreover have "arange m0 x = Some L'" using L'_def
+                by (metis bot.extremum a_data.range_def a_data.range_safe_subset_same)
+              moreover obtain LL where LL_def: "arange_safe (finsert l1 s) m0 l'' = Some LL"
+                by (meson Cons.prems(3) \<open>xs $ j' = Some l''\<close> m1_ls nth_in_set a_data.range_safe_obtains_subset)
+              then have "L1' |\<subseteq>| LL" using Cons(5) a_data.mlookup_range_safe_subs[OF *, of s _ "(finsert l1 s)"] by blast
+              moreover from LL_def have "arange m0 l'' = Some LL"
+                by (metis all_not_fin_conv data.range_safe_nin_same fempty_fminus arange_safe_def a_data.range_def)
               ultimately have "L' |\<inter>| L1' = {||}" using Cons(9) unfolding a_data.disjoined_def
                 using m1_ls \<open>L' |\<subseteq>| L1\<close> False \<open>xs $ i' = Some x\<close> \<open>xs $ j' = Some l''\<close> by blast
               then have "\<forall>l|\<in>|L'. m1 $ l = m0 $ l" using Cons(7) `L' |\<subseteq>| L1` by auto
-              then show ?thesis using a_data.locs_safe_same[OF L'_def] using L_def by simp
+              then show ?thesis using a_data.range_safe_same[OF L'_def] using L_def by simp
             qed
             ultimately show "L |\<subseteq>| L1 |\<union>| L2'" by auto
           qed
         qed
       qed
-      moreover have "l1 |\<in>| L1" using Cons(4) a_data.locs_safe_subs by blast
-      ultimately show ?thesis using fold_subs[of xs "alocs_safe (finsert l1 s) m1" "fset (L1 |\<union>| L2')"] by fast
+      moreover have "l1 |\<in>| L1" using Cons(4) a_data.range_safe_subs by blast
+      ultimately show ?thesis using fold_subs[of xs "arange_safe (finsert l1 s) m1" "fset (L1 |\<union>| L2')"] by fast
     qed
   qed
 qed
 
-lemma locs_update_subs:
+lemma range_update_subs:
   assumes "mlookup m0 is1 l1 = Some l1'"
       and "m1 $ l1' = m0 $ l2'"
-      and "alocs m0 l1 = Some L1"
-      and "alocs m0 l1' = Some L1'"
-      and "alocs m0 l2' = Some L2'"
+      and "arange m0 l1 = Some L1"
+      and "arange m0 l1' = Some L1'"
+      and "arange m0 l2' = Some L2'"
       and "(\<forall>l |\<in>| L1 |-| L1'. m1 $ l = m0 $ l)"
       and "(\<forall>l |\<in>| L2'. m1 $ l = m0 $ l)"
       and "adisjoined m0 L1"
-      and "alocs m1 l1 = Some L"
+      and "arange m1 l1 = Some L"
     shows "L |\<subseteq>| L1 |\<union>| L2'"
-  using locs_safe_update_subs[OF assms(1,2) _ _ _ assms(6,7,8)] unfolding alocs_def
-  by (metis assms(3,4,5,9) a_data.locs_def)
+  using range_safe_update_subs[OF assms(1,2) _ _ _ assms(6,7,8)] unfolding arange_def
+  by (metis assms(3,4,5,9) a_data.range_def)
 
 section \<open>Initialize Memory\<close>
 
@@ -4764,7 +4764,7 @@ proof -
     by (metis "2" assms(1,3) mdata.inject(2) nth_safe_def option.inject split_pairs2)
 qed
 
-lemma locs_notin_s:
+lemma range_notin_s:
   assumes "n < length ds"
       and "n < length xs"
       and "\<forall>n < length xs.
@@ -5405,13 +5405,13 @@ qed
 
 section \<open>Memory Init and Memory Locations\<close>
 
-lemma write_locs_safe_in:
+lemma write_range_safe_in:
   assumes "write (adata.Array ds) m0 = (l, m)"
-      and "alocs_safe s m l = Some L"
+      and "arange_safe s m l = Some L"
       and "x |\<in>| L"
     shows "x = l \<or>
             (\<exists>n y L'. n<length ds \<and> fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))
-            = y \<and> alocs_safe s m y = Some L' \<and> x |\<in>| L')"
+            = y \<and> arange_safe s m y = Some L' \<and> x |\<in>| L')"
 proof -
   from assms write_obtain[of ds m0] obtain xs
     where *: "m $ l = Some (mdata.Array xs)"
@@ -5423,33 +5423,33 @@ proof -
     by auto
   moreover from assms(2) * have
     "fold
-      (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
+      (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe (finsert l s) m x) \<bind> (\<lambda>l. Some (l |\<union>| y'))))
       xs
       (Some {|l|})
     = Some L"
     by (auto simp add:case_memory_def split:if_split_asm)
   ultimately have
-    "x = l \<or> (\<exists>n L'. n < length xs \<and> alocs_safe (finsert l s) m (xs ! n) = Some L' \<and> x |\<in>| L')"
-    using fold_union_in[of "alocs_safe (finsert l s) m"] assms(3) by blast
+    "x = l \<or> (\<exists>n L'. n < length xs \<and> arange_safe (finsert l s) m (xs ! n) = Some L' \<and> x |\<in>| L')"
+    using fold_union_in[of "arange_safe (finsert l s) m"] assms(3) by blast
   then show ?thesis
   proof
     assume "x = l"
     then show ?thesis by simp
   next
-    assume "\<exists>n L'. n < length xs \<and> alocs_safe (finsert l s) m (xs ! n) = Some L' \<and> x |\<in>| L'"
+    assume "\<exists>n L'. n < length xs \<and> arange_safe (finsert l s) m (xs ! n) = Some L' \<and> x |\<in>| L'"
     then obtain n L'
       where "n < length xs"
-        and ***: "alocs_safe (finsert l s) m (xs ! n) = Some L'"
+        and ***: "arange_safe (finsert l s) m (xs ! n) = Some L'"
         and "x |\<in>| L'" by blast
-    moreover from *** have "alocs_safe s m (xs ! n) = Some L'"
-      using a_data.locs_safe_subset_same by blast
+    moreover from *** have "arange_safe s m (xs ! n) = Some L'"
+      using a_data.range_safe_subset_same by blast
     ultimately show ?thesis using ** by (metis \<open>length xs = length ds\<close>)
   qed
 qed
 
-theorem write_alocs_safe:
+theorem write_arange_safe:
   assumes "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
-  shows "s_disj_fs (loc m0) (alocs_safe s (snd (write cd m0)) (fst (write cd m0)))"
+  shows "s_disj_fs (loc m0) (arange_safe s (snd (write cd m0)) (fst (write cd m0)))"
   using assms
 proof (induction cd arbitrary: m0 s)
   case (Value x)
@@ -5466,11 +5466,11 @@ next
   moreover have "\<not> fst (write (Array ds) m0) |\<in>| s" using Array(2)
     by (metis less_Suc_eq_le write_length_inc write_length_suc nth_safe_length xs1)
   ultimately have
-    "alocs_safe s
+    "arange_safe s
         (snd (write (adata.Array ds) m0))
         (fst (write (adata.Array ds) m0))
      = fold (\<lambda>x y.
-        y \<bind> (\<lambda>y'. (alocs_safe (finsert (fst (write (Array ds) m0)) s) (snd (write (Array ds) m0)) x)
+        y \<bind> (\<lambda>y'. (arange_safe (finsert (fst (write (Array ds) m0)) s) (snd (write (Array ds) m0)) x)
           \<bind> (\<lambda>l. Some (l |\<union>| y'))))
        xs (Some {|fst (write (Array ds) m0)|})" (is "_ = fold ?f xs (Some {|fst (write (Array ds) m0)|})")
     by (simp add:case_memory_def) 
@@ -5504,7 +5504,7 @@ next
           moreover have
             "s_disj_fs
               (loc m0)
-              (alocs_safe
+              (arange_safe
                 (finsert (fst (write (adata.Array ds) m0)) s)
                 (snd (write (adata.Array ds) m0))
                 (xs ! n))"
@@ -5513,14 +5513,14 @@ next
             moreover have "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
                            l < length (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
                            \<longrightarrow> l |\<notin>| (finsert (fst (write (adata.Array ds) m0)) s)"
-              using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
+              using range_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
             ultimately have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
-                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                 (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                    (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
                    (fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))"
               using Array by blast
             then have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
-                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                 (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                    (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
                    (xs ! n))"
               using xs3 by (metis Suc.prems Suc_le_eq)
@@ -5529,11 +5529,11 @@ next
                  (snd (write (adata.Array ds) m0))"
               using write_sprefix_take sprefix_prefix by blast
             ultimately have "s_disj_fs (loc (snd (fold_map write (take n ds) m0)))
-                 (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                 (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                    (snd (write (adata.Array ds) m0))
                    (xs ! n))"
-              using a_data.locs_safe_prefix[of "(snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"]
-              unfolding s_disj_fs_def pred_some_def by (auto simp del: a_data.locs_safe.simps) 
+              using a_data.range_safe_prefix[of "(snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"]
+              unfolding s_disj_fs_def pred_some_def by (auto simp del: a_data.range_safe.simps) 
             moreover have "prefix m0 (snd (fold_map write (take n ds) m0))"
               using fold_map_prefix[of "write"]
               by (metis write_sprefix prod.collapse sndI sprefix_prefix)
@@ -5550,20 +5550,20 @@ next
   ultimately show ?case by simp
 qed
 
-corollary write_alocs:
+corollary write_arange:
   assumes "write cd m0 = (l, m)"
-  shows "s_disj_fs (loc m0) (alocs m l)"
-  using write_alocs_safe
-  unfolding a_data.locs_def
+  shows "s_disj_fs (loc m0) (arange m l)"
+  using write_arange_safe
+  unfolding a_data.range_def
   by (metis assms fempty_iff fst_conv snd_conv)
 
-lemma fold_map_write_alocs:
+lemma fold_map_write_arange:
   assumes "write (adata.Array ds) m0 = (l, m)"
     and "j < length ds"
     and "i < j"
   shows "s_disj_fs
           (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))
-          (alocs m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
+          (arange m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
   using assms(3,1,2)
 proof -
   from assms write_obtain[of ds m0] obtain l' m'
@@ -5571,12 +5571,12 @@ proof -
       and **:"prefix m' m"
     by (metis K.cases snd_conv)
   moreover from * have
-    ***: "s_disj_fs (loc (snd (fold_map write (take j ds) m0))) (alocs m' l')"
-    using write_alocs[where ?m0.0="snd (fold_map write (take j ds) m0)"] by auto
-  moreover from *** obtain x where "alocs m' l' = Some x"
+    ***: "s_disj_fs (loc (snd (fold_map write (take j ds) m0))) (arange m' l')"
+    using write_arange[where ?m0.0="snd (fold_map write (take j ds) m0)"] by auto
+  moreover from *** obtain x where "arange m' l' = Some x"
     unfolding s_disj_fs_def pred_some_def by auto
-  then have "alocs m' l' = alocs m l'"
-    using assms * ** by (metis a_data.locs_def a_data.locs_safe_prefix)
+  then have "arange m' l' = arange m l'"
+    using assms * ** by (metis a_data.range_def a_data.range_safe_prefix)
   moreover have
     "loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0))))
     \<subseteq> loc (snd (fold_map write (take j ds) m0))" using assms
@@ -5590,8 +5590,8 @@ theorem write_loc_safe:
     "s_union_fs
       (loc (snd (write cd m0)))
       (loc m0)
-      (alocs_safe s (snd (write cd m0)) (fst (write cd m0)))
-     \<and> (\<forall>x |\<in>| the (alocs_safe s (snd (write cd m0)) (fst (write cd m0))).
+      (arange_safe s (snd (write cd m0)) (fst (write cd m0)))
+     \<and> (\<forall>x |\<in>| the (arange_safe s (snd (write cd m0)) (fst (write cd m0))).
           x < (length (snd (write cd m0))))"
   using assms
 proof (induction cd arbitrary: m0 s)
@@ -5603,7 +5603,7 @@ next
   define f where "f =
     (\<lambda>x y. y
       \<bind> (\<lambda>y'.
-        (alocs_safe (finsert (fst (write (Array ds) m0)) s)
+        (arange_safe (finsert (fst (write (Array ds) m0)) s)
           (snd (write (Array ds) m0)) x)
          \<bind> (\<lambda>l. Some (l |\<union>| y'))))"
   from write_obtain obtain xs
@@ -5617,7 +5617,7 @@ next
 
   have xs0: "\<not> fst (write (Array ds) m0) |\<in>| s" using Array(2)
     by (metis less_Suc_eq_le write_length_inc write_length_suc nth_safe_length xs1)
-  then have "alocs_safe s
+  then have "arange_safe s
                     (snd (write (adata.Array ds) m0))
                     (fst (write (adata.Array ds) m0))
                  = fold f xs (Some {|fst (write (Array ds) m0)|})"
@@ -5659,22 +5659,22 @@ next
           \<longrightarrow> l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s"
           using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3
           by (meson \<open>n < length xs\<close>)
-        then have a4: "alocs_safe ?s ?B ?C \<noteq> None"
+        then have a4: "arange_safe ?s ?B ?C \<noteq> None"
           using Array(1)[of
               "ds!n"
               "(butlast (snd (write (adata.Array (take n ds)) m0)))"
               "(finsert (fst (write (adata.Array ds) m0)) s)"]
           unfolding s_union_fs_def pred_some_def
           using \<open>n < length ds\<close> nth_mem by blast
-        from a4 have a5: "alocs_safe ?s
+        from a4 have a5: "arange_safe ?s
                       (snd (write (Array ds) m0))
                       ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))) \<noteq> None"
           using xs3 \<open>n \<le> length xs\<close>
-            a_data.locs_safe_prefix[of
+            a_data.range_safe_prefix[of
               "(snd (write (ds ! n) (butlast (snd (write (adata.Array (take n ds)) m0)))))"
               "(snd (write (Array ds) m0))" "(finsert (fst (write (adata.Array ds) m0)) s)"]
             butlast_write[of "(take n ds)" m0]
-          apply (auto simp del:write.simps a_data.locs_safe.simps)
+          apply (auto simp del:write.simps a_data.range_safe.simps)
           by (metis \<open>n < length xs\<close>)
         have a6:
             "fset (the (fold f (take n xs) (Some {||})))
@@ -5685,8 +5685,8 @@ next
             have
               "s_disj_fs
                 (loc m0)
-                (alocs_safe s (snd (write (adata.Array ds) m0)) (fst (write (adata.Array ds) m0)))"
-              using write_alocs_safe[OF Array(2)] by simp
+                (arange_safe s (snd (write (adata.Array ds) m0)) (fst (write (adata.Array ds) m0)))"
+              using write_arange_safe[OF Array(2)] by simp
             then have "s_disj_fs (loc m0) (fold f xs (Some {|fst (write (Array ds) m0)|}))"
               using xs0 xs1 unfolding f_def by (auto simp add: case_memory_def)
             moreover have "s_disj_fs (loc m0) (Some {|fst (write (adata.Array ds) m0)|})"
@@ -5700,12 +5700,12 @@ next
               unfolding f_def
               using s_disj_fs_loc_fold[of
                   m0
-                  "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
+                  "arange_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
                   xs "Some {|fst (write (adata.Array ds) m0)|}" n] by simp
             moreover from a3 have "the (fold f (take n xs) (Some {|fst (write (Array ds) m0)|})) =
             the (fold f (take n xs) (Some {||})) |\<union>| {|fst (write (Array ds) m0)|}"
               unfolding f_def using fold_none_the_fold[of
-                  "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
+                  "arange_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
                   "(take n xs)" "{||}" "{|fst (write (adata.Array ds) m0)|}"] by auto
             ultimately have "s_disj_fs (loc m0) (fold f (take n xs) (Some {||}))"
               unfolding s_disj_fs_def pred_some_def
@@ -5713,7 +5713,7 @@ next
             then show ?thesis unfolding f_def
               using s_disj_fs_loc_fold[of
               m0
-              "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
+              "arange_safe (finsert (fst (write (adata.Array ds) m0)) s) (snd (write (adata.Array ds) m0))"
               xs "Some {||}" n] by simp
           qed
         next
@@ -5749,23 +5749,23 @@ next
 
         have a7:"
           the ((
-            alocs_safe ?s
+            arange_safe ?s
               (snd (write (Array ds) m0))
               ((fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))))
            |\<inter>| the (fold f (take n xs) (Some {||})) = {||}"
         proof -
           have
-            "alocs_safe ?s
+            "arange_safe ?s
               (snd (write (Array ds) m0))
               ((fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))
-          = alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C"
+          = arange_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C"
           proof -
             have "prefix ?B (snd (write (Array ds) m0))"
               using xs3 by (metis \<open>n < length xs\<close> butlast_write)
             then have
-              "alocs_safe ?s ?B ?C
-              = alocs_safe ?s (snd (write (adata.Array ds) m0)) ?C"
-              using a_data.locs_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s] a4
+              "arange_safe ?s ?B ?C
+              = arange_safe ?s (snd (write (adata.Array ds) m0)) ?C"
+              using a_data.range_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s] a4
               by fastforce
             moreover have
               "butlast (snd (write (adata.Array (take n ds)) m0))
@@ -5773,10 +5773,10 @@ next
               using butlast_write by auto
             ultimately show ?thesis by auto
           qed
-          moreover have "loc ?A \<inter> fset (the (alocs_safe ?s ?B ?C)) = {}"
+          moreover have "loc ?A \<inter> fset (the (arange_safe ?s ?B ?C)) = {}"
           proof -
-            have "s_disj_fs (loc ?A) (alocs_safe ?s ?B ?C)"
-            proof (rule write_alocs_safe)
+            have "s_disj_fs (loc ?A) (arange_safe ?s ?B ?C)"
+            proof (rule write_arange_safe)
               show "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
                 using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close> by blast
             qed
@@ -5825,20 +5825,20 @@ next
                       |-| (the (fold f (take n xs) (Some {||}))))"
               proof -
                 have "(loc ?B - loc ?A)
-                 = fset (the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C))"
+                 = fset (the (arange_safe (finsert (fst (write (adata.Array ds) m0)) s) ?B ?C))"
                 proof (rule s_union_fs_diff)
                   have "ds ! n \<in> set ds"
                     by (simp add: \<open>n < length ds\<close>)
                   moreover have "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
                     using length_write_write[OF \<open>n < length ds\<close> Array(2)] \<open>n < length xs\<close> xs3
                     by blast
-                  ultimately show "s_union_fs (loc ?B) (loc ?A) (alocs_safe ?s ?B ?C)"
+                  ultimately show "s_union_fs (loc ?B) (loc ?A) (arange_safe ?s ?B ?C)"
                     using Array(1) by blast
                 next
-                  show "loc ?A \<inter> fset (the (alocs_safe ?s ?B ?C)) = {}"
+                  show "loc ?A \<inter> fset (the (arange_safe ?s ?B ?C)) = {}"
                   proof -
-                    have "s_disj_fs (loc ?A) (alocs_safe ?s ?B ?C)"
-                    proof (rule write_alocs_safe)
+                    have "s_disj_fs (loc ?A) (arange_safe ?s ?B ?C)"
+                    proof (rule write_arange_safe)
                       show "\<forall>l\<ge>length ?A. l < length ?B \<longrightarrow> l |\<notin>| ?s"
                         using length_write_write[OF \<open>n < length ds\<close> Array(2)] xs3 \<open>n < length xs\<close>
                         by blast
@@ -5847,48 +5847,48 @@ next
                 qed
               qed
                 moreover have
-                  "fset (the (alocs_safe ?s ?B ?C))
+                  "fset (the (arange_safe ?s ?B ?C))
                   = fset (the (f (xs!n) (fold f (take n xs) (Some {||})))
                     |-| (the (fold f (take n xs) (Some {||}))))"
                 proof -
                   from a3 have
-                    "(\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (write (Array ds) m0)) x)
+                    "(\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe ?s (snd (write (Array ds) m0)) x)
                                    \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs!n) (fold f (take n xs) (Some {||}))
-                    = (alocs_safe ?s
+                    = (arange_safe ?s
                         (snd (write (Array ds) m0))
                         ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       \<bind> (\<lambda>l. Some (l |\<union>| the (fold f (take n xs) (Some {||}))))"
                     using xs3 \<open>n < length xs\<close> by fastforce
                   moreover from a5 have
-                    "(alocs_safe ?s
+                    "(arange_safe ?s
                       (snd (write (Array ds) m0))
                       ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                      \<bind> (\<lambda>l. Some (l |\<union>| the (fold f (take n xs) (Some {||}))))
                     = Some (the (
-                        alocs_safe ?s
+                        arange_safe ?s
                           (snd (write (Array ds) m0))
                           ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       |\<union>| the (fold f (take n xs) (Some {||})))"
                     by fastforce
                   moreover from a7 have
                     "the
-                      (alocs_safe ?s
+                      (arange_safe ?s
                         (snd (write (Array ds) m0))
                         ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))
                       |\<union>| the (fold f (take n xs) (Some {||}))
                       |-| (the (fold f (take n xs) (Some {||})))
                     = the
-                        (alocs_safe ?s
+                        (arange_safe ?s
                           (snd (write (Array ds) m0))
                           ((fst (write (ds!n) (snd (fold_map write (take n ds) m0))))))"
                     by blast
                   ultimately have
                     "the (
-                      (\<lambda>x y. y \<bind> (\<lambda>y'. (alocs_safe ?s (snd (write (Array ds) m0)) x)
+                      (\<lambda>x y. y \<bind> (\<lambda>y'. (arange_safe ?s (snd (write (Array ds) m0)) x)
                         \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs!n) (fold f (take n xs) (Some {||})))
                       |-| (the (fold f (take n xs) (Some {||})))
                   = the (
-                      alocs_safe ?s
+                      arange_safe ?s
                         (snd (write (Array ds) m0))
                         (fst (write (ds!n) (snd (fold_map write (take n ds) m0)))))"
                     by simp
@@ -5897,7 +5897,7 @@ next
                   moreover have "?C = (fst (write (ds!n) (snd (fold_map write (take n ds) m0))))"
                     by (metis butlast_write)
                   ultimately show ?thesis
-                    using a_data.locs_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s]
+                    using a_data.range_safe_prefix[of ?B "(snd (write (Array ds) m0))" ?s]
                     f_def a4 by force
                 qed
                 ultimately show ?thesis by blast
@@ -5931,7 +5931,7 @@ next
                   the (fold
                    (\<lambda>x y. y \<bind>
                      (\<lambda>y'.
-                         alocs_safe
+                         arange_safe
                           (finsert (fst (write (adata.Array ds) m0)) s)
                           (snd (write (adata.Array ds) m0))
                           x
@@ -5941,7 +5941,7 @@ next
               next
                 from a3 show
                   "fold (\<lambda>x y. y \<bind>
-                    (\<lambda>y'. alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                    (\<lambda>y'. arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                       (snd (write (adata.Array ds) m0)) x \<bind> (\<lambda>l. Some (l |\<union>| y')))) (take n xs) (Some {||})
                    \<noteq> None"
                   unfolding f_def by auto
@@ -5949,11 +5949,11 @@ next
               finally have
                 "?f (Suc n) = f (xs ! n) (Some (the (?f n) |-| {|?s n|})) \<bind> Some \<circ> finsert (?s (Suc n))" .
               moreover from a7 have
-                "the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                "the (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                   (snd (write (adata.Array ds) m0)) (xs ! n))
                 |\<inter>| the (fold f (take n xs) (Some {||})) = {||}" using xs3 f_def by (metis \<open>n < length xs\<close>)
               moreover from a5 have
-                "alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                "arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                   (snd (write (adata.Array ds) m0)) (xs ! n) \<noteq> None" using xs3
                 by (simp add: \<open>n < length xs\<close>)
               ultimately show ?thesis using a3 unfolding f_def by auto
@@ -5973,7 +5973,7 @@ next
               then have
                 "x |\<in>| the ((\<lambda>x y. y
                   \<bind> (\<lambda>y'.
-                    (alocs_safe (finsert (fst (write (Array ds) m0)) s)
+                    (arange_safe (finsert (fst (write (Array ds) m0)) s)
                       (snd (write (Array ds) m0)) x)
                      \<bind> (\<lambda>l. Some (l |\<union>| y')))) (xs ! n) (fold f (take n xs) (Some {||})))"
                 using fold_take[OF \<open>n < length xs\<close>]
@@ -5982,14 +5982,14 @@ next
                 using a3 by auto
               moreover obtain z
                 where z_def:
-                  "alocs_safe
+                  "arange_safe
                     (finsert (fst (write (adata.Array ds) m0)) s)
                     (snd (write (adata.Array ds) m0))
                     (xs ! n)
                   = Some z"
                 using a5 xs3 using \<open>n < length xs\<close> by auto
               ultimately consider "x |\<in>| y" | "x |\<in>| z"
-                by (auto simp del:a_data.locs_safe.simps write.simps)
+                by (auto simp del:a_data.range_safe.simps write.simps)
               then show "x < fst (write (adata.Array (take (Suc n) ds)) m0)"
               proof cases
                 case 1
@@ -6005,8 +6005,8 @@ next
                   "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
                     l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
                    \<longrightarrow> l |\<notin>| finsert (fst (write (adata.Array ds) m0)) s"
-                  using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> _ Array(2)] xs3 by blast
-                then have "(\<forall>x|\<in>|the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                  using range_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> _ Array(2)] xs3 by blast
+                then have "(\<forall>x|\<in>|the (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                    (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
                    (fst (write (ds ! n) (snd (fold_map write (take n ds) m0))))).
                    x < (length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))))"
@@ -6017,10 +6017,10 @@ next
                       "(finsert (fst (write (adata.Array ds) m0)) s)"]
                     \<open>n < length ds\<close> nth_mem by blast
                 moreover from a4 have
-                  "x|\<in>|the (alocs_safe (finsert (fst (write (adata.Array ds) m0)) s)
+                  "x|\<in>|the (arange_safe (finsert (fst (write (adata.Array ds) m0)) s)
                   (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
                   (fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))))"
-                  using 2 xs3 z_def \<open>n < length xs\<close> butlast_write a_data.locs_safe_prefix
+                  using 2 xs3 z_def \<open>n < length xs\<close> butlast_write a_data.range_safe_prefix
                   by (smt (verit, del_insts) option.exhaust_sel option.sel)
                 ultimately have
                   "x < (length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))))"
@@ -6072,16 +6072,16 @@ qed
 
 corollary write_loc:
   assumes "write cd m0 = (l, m)"
-  shows "s_union_fs (loc m) (loc m0) (alocs m l)"
-  using assms write_loc_safe unfolding a_data.locs_safe_prefix
-  by (metis a_data.locs_def fempty_iff fst_conv snd_conv)
+  shows "s_union_fs (loc m) (loc m0) (arange m l)"
+  using assms write_loc_safe unfolding a_data.range_safe_prefix
+  by (metis a_data.range_def fempty_iff fst_conv snd_conv)
 
 lemma fold_map_write_loc:
   assumes "write (adata.Array ds) m0 = (l, m)"
      and "i < length ds"
      and "i' = fst (write (ds ! i) (snd (fold_map write (take i ds) m0)))"
    shows "fs_subs_s
-            (alocs m i')
+            (arange m i')
             (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))"
   using assms
 proof -
@@ -6090,7 +6090,7 @@ proof -
     "s_union_fs
       (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))
       (loc (snd (fold_map write (take i ds) m0)))
-      (alocs (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i')"
+      (arange (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i')"
     using write_loc[of
           "ds ! i"
           "snd (fold_map write (take i ds) m0)"
@@ -6098,49 +6098,49 @@ proof -
           "snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))"]
     by simp
   then obtain L
-    where L_def: "alocs (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i'
+    where L_def: "arange (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) i'
             = Some L"
       and "loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0))))
         = loc (snd (fold_map write (take i ds) m0)) \<union> fset L"
     unfolding s_union_fs_def pred_some_def by blast
   moreover from assms(1,2) write_obtain[of ds m0] have
     "prefix (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))) m" by auto
-  with L_def have "alocs m i' = Some L" using a_data.locs_prefix by blast
+  with L_def have "arange m i' = Some L" using a_data.range_prefix by blast
   ultimately show ?thesis unfolding fs_subs_s_def pred_some_def by blast
 qed
 
-lemma prefix_write_locs_safe_same:
+lemma prefix_write_range_safe_same:
   assumes "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
-      and "alocs_safe s m y = Some L'"
+      and "arange_safe s m y = Some L'"
       and "y = fst (write (ds ! n) (snd (fold_map write (take n ds) m0)))"
       and "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
             l < length (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))
           \<longrightarrow> l |\<notin>| s"
-    shows "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
+    shows "arange_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
 proof -
   from assms(3) obtain LL
-    where "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some LL"
+    where "arange_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some LL"
     using write_loc_safe[OF assms(4)] unfolding s_union_fs_def pred_some_def by blast
   then show ?thesis using assms(1,2)
-    by (metis a_data.locs_safe_prefix)
+    by (metis a_data.range_safe_prefix)
 qed
 
 lemma prefix_write_nth_same:
   assumes "m $ x = Some (mdata.Array xs)"
       and "fst (write (ds ! n) (snd (fold_map write (take n ds) m0))) = y"
-      and "alocs_safe s m y = Some L'"
+      and "arange_safe s m y = Some L'"
       and "x |\<in>| L'"
       and "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
     shows "snd (write (ds ! n) (snd (fold_map write (take n ds) m0))) $ x = Some (mdata.Array xs)"
 proof -
   from assms(2) obtain L
-    where "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L"
+    where "arange (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L"
       and subs: "fset L \<subseteq> loc (snd (write (ds ! n) (snd (fold_map write (take n ds) m0))))"
     using write_loc[of "ds ! n" "snd (fold_map write (take n ds) m0)"]
     unfolding s_union_fs_def pred_some_def by force
-  then have "alocs m y = Some L" using a_data.locs_prefix[OF assms(5)] by auto
+  then have "arange m y = Some L" using a_data.range_prefix[OF assms(5)] by auto
   with assms(4) have "x |\<in>| L"
-    by (metis assms(3) bot.extremum a_data.locs_def option.inject a_data.locs_safe_subset_same)
+    by (metis assms(3) bot.extremum a_data.range_def option.inject a_data.range_safe_subset_same)
   with subs obtain l
     where "snd (write (ds ! n) (snd (fold_map write (take n ds) m0))) $ x = Some l"
     unfolding loc_def by auto
@@ -6228,7 +6228,7 @@ next
               moreover have "\<forall>l\<ge>length (snd (fold_map write (take n ds) m0)).
                 l < length (snd (write (ds!n) (snd (fold_map write (take n ds) m0))))
                 \<longrightarrow> l |\<notin>| (finsert (fst (write (Array ds) m0)) s)"
-              using locs_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
+              using range_notin_s[OF \<open>n < length ds\<close> \<open>n < length xs\<close> xs3 Array(2)] by blast
               ultimately show ?thesis using Array(1) by blast
             qed
             moreover have "xs!n = fst (write (ds!n) (snd (fold_map write (take n ds) m0)))"
@@ -6266,7 +6266,7 @@ section \<open>Minit and Separation Check\<close>
 
 lemma write_adisjoined:
   assumes "write cd m0 = (l, m1)"
-      and "alocs_safe s m1 l = Some L"
+      and "arange_safe s m1 l = Some L"
       and "\<forall>l \<ge> length m0. l < length (snd (write cd m0)) \<longrightarrow> \<not> l |\<in>| s"
     shows "adisjoined m1 L"
   using assms
@@ -6280,8 +6280,8 @@ next
     \<longrightarrow> (\<forall>i j i' j' L L'.
           i \<noteq> j \<and> xs $ i = Some i'
           \<and> xs$j = Some j'
-          \<and> alocs m i' = Some L
-          \<and> alocs m j' = Some L'
+          \<and> arange m i' = Some L
+          \<and> arange m j' = Some L'
       \<longrightarrow> L |\<inter>| L' = {||})"
   proof
     fix x
@@ -6291,17 +6291,17 @@ next
       | (2) n y L'
       where "n<length ds"
         and "fst (write (ds ! n) (snd (fold_map write (take n ds) m0))) = y"
-        and "alocs_safe s m y = Some L'"
+        and "arange_safe s m y = Some L'"
         and "x |\<in>| L'"
-      using write_locs_safe_in "2.prems"(1,2) by blast
+      using write_range_safe_in "2.prems"(1,2) by blast
     then show
       "\<forall>xs. m $ x = Some (mdata.Array xs)
       \<longrightarrow> (\<forall>i j i' j' L L'.
             i \<noteq> j
             \<and> xs $ i = Some i'
             \<and> xs $ j = Some j'
-            \<and> alocs m i' = Some L
-            \<and> alocs m j' = Some L'
+            \<and> arange m i' = Some L
+            \<and> arange m j' = Some L'
           \<longrightarrow> L |\<inter>| L' = {||})"
     proof cases
       case 1
@@ -6312,15 +6312,15 @@ next
           and **: "i \<noteq> j
                   \<and> xs $ i = Some i'
                   \<and> xs $ j = Some j'
-                  \<and> alocs m i' = Some L
-                  \<and> alocs m j' = Some L'"
+                  \<and> arange m i' = Some L
+                  \<and> arange m j' = Some L'"
         {
           fix i::nat and j and i' and j' and L and L'
           assume "i < j"
             and **: "xs $ i = Some i'
                     \<and> xs $ j = Some j'
-                    \<and> alocs m i' = Some L
-                    \<and> alocs m j' = Some L'"
+                    \<and> arange m i' = Some L
+                    \<and> arange m j' = Some L'"
           moreover from 2(2) have
             "snd (write (adata.Array ds) m0) $ fst (write (adata.Array ds) m0)
             = Some (mdata.Array xs)"
@@ -6346,8 +6346,8 @@ next
           then have
             "s_disj_fs
               (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))
-              (alocs m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
-            using fold_map_write_alocs[OF 2(2), of j i] `i < j` by blast
+              (arange m (fst (write (ds ! j) (snd (fold_map write (take j ds) m0)))))"
+            using fold_map_write_arange[OF 2(2), of j i] `i < j` by blast
           ultimately have
             "s_disj_fs
               (loc (snd (write (ds ! i ) (snd (fold_map write (take i ds) m0)))))
@@ -6361,7 +6361,7 @@ next
             moreover from `j < length ds` have "i < length ds" using `i<j` by simp
             ultimately have
               "fs_subs_s
-                (alocs m i')
+                (arange m i')
                 (loc (snd (write (ds ! i) (snd (fold_map write (take i ds) m0)))))"
               using fold_map_write_loc[OF 2(2), of i i'] 2(2) ** `j < length ds` `i < j` by simp
             then show ?thesis unfolding fs_subs_s_def pred_some_def using ** by simp
@@ -6393,8 +6393,8 @@ next
       moreover have **: "prefix (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) m"
         by (metis "2.prems"(1) "22"(1) write_obtain split_pairs)
       then have 7:
-        "alocs_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
-        using prefix_write_locs_safe_same[OF _ 22(3) _ *] 22(2) by blast
+        "arange_safe s (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) y = Some L'"
+        using prefix_write_range_safe_same[OF _ 22(3) _ *] 22(2) by blast
       ultimately have
         "adisjoined (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) L'"
         using 2(1)[of
@@ -6412,9 +6412,9 @@ next
                 i \<noteq> j
                 \<and> xs $ i = Some i'
                 \<and> xs $ j = Some j'
-                \<and> alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i'
+                \<and> arange (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i'
                   = Some L
-                \<and> alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j'
+                \<and> arange (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j'
                   = Some L'
              \<longrightarrow> L |\<inter>| L' = {||})"
         by (simp add: a_data.disjoined_def)
@@ -6425,24 +6425,24 @@ next
           and ****: "i \<noteq> j
                     \<and> xs $ i = Some i'
                     \<and> xs $ j = Some j'
-                    \<and> alocs m i' = Some L'
-                    \<and> alocs m j' = Some L''"
+                    \<and> arange m i' = Some L'
+                    \<and> arange m j' = Some L''"
         moreover have
           *****: "(snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) $ x
           = Some (mdata.Array xs)"
           using prefix_write_nth_same[OF *** _ 22(3,4) **] "22"(2) by auto
         moreover have
-          "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i' = Some L'"
-          using a_data.locs_safe_prefix_in_locs[OF 7 22(4) *****] **** ** by blast
+          "arange (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) i' = Some L'"
+          using a_data.range_safe_prefix_in_range[OF 7 22(4) *****] **** ** by blast
         moreover have
-          "alocs (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j' = Some L''"
-          using a_data.locs_safe_prefix_in_locs[OF 7 22(4) *****] **** ** by blast
+          "arange (snd (write (ds ! n) (snd (fold_map write (take n ds) m0)))) j' = Some L''"
+          using a_data.range_safe_prefix_in_range[OF 7 22(4) *****] **** ** by blast
         ultimately show "L' |\<inter>| L'' = {||}" using * by blast
       qed
     qed
   qed
   then show ?case unfolding a_data.disjoined_def
-    by (simp add: a_data.locs_def alocs_safe_def)
+    by (simp add: a_data.range_def arange_safe_def)
 qed
 
 end

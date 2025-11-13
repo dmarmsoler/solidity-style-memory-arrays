@@ -181,7 +181,7 @@ lemma write_length_inc: "length (snd (write cd m0)) > length m0"
 
 corollary write_loc:
   assumes "write cd m0 = (l, m)"
-  shows "s_union_fs (loc m) (loc m0) (alocs m l)"
+  shows "s_union_fs (loc m) (loc m0) (arange m l)"
   using assms apply transfer using write_loc by blast
 
 section \<open>Storage\<close>
@@ -255,8 +255,8 @@ definition read_storage_memory :: "'v storage_data \<Rightarrow> location \<Righ
 global_interpretation storage_data: data storage_data.Value storage_data.Array
   defines read_storage_safe = storage_data.read_safe
       and read_storage = storage_data.read
-      and locs_storage_safe = storage_data.locs_safe
-      and locs_storage = storage_data.locs
+      and range_storage_safe = storage_data.range_safe
+      and range_storage = storage_data.range
   .
 
 subsection \<open>Data type\<close>
