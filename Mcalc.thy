@@ -814,8 +814,7 @@ lemma copy_mupdate:
       and "the (alocs m0 l1) |\<inter>| the (alocs m0 l2) = {||}"
       and "acopy m0 l1 = Some cd1"
       and "acopy m0 l2 = Some cd2"
-    shows "acopy m1 l1 = 
-      Some (the (alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1 cd cd1)))"
+    shows "acopy m1 l1 = Some (the (alookup is2 cd2 \<bind> (\<lambda>cd. aupdate is1 cd cd1)))"
 proof-
   from assms(1) obtain l
     where l_def: "mlookup m0 is1 l1 = Some l"
