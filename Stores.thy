@@ -154,11 +154,13 @@ lemma nth_safe_transfer[transfer_rule]: "(list_all2 ((pcr_call_data (=))) ===> (
 
 end
 
-lemma x[simp,code]: "write (call_data.Value x) m = length_append m (mdata.Value x)"
+lemma write_length_append[simp,code]: "write (call_data.Value x) m = length_append m (mdata.Value x)"
   apply transfer
   by simp
 
-lemma y[simp,code]: "write (call_data.Array ds) m = (let (ns, m') = fold_map write ds m in (length_append m' (mdata.Array ns)))"
+lemma write_fold_map_length_append[simp,code]:
+  "write (call_data.Array ds) m = (let (ns, m')
+    = fold_map write ds m in (length_append m' (mdata.Array ns)))"
   apply transfer
   by auto
 
@@ -168,11 +170,11 @@ lemma clookup[simp,code]:
   by simp
 
 lemma clookup2[simp,code]:
-"clookup (i # is) (call_data.Array xs) = vtype_class.to_nat i \<bind> ($) xs \<bind> clookup is"
+  "clookup (i # is) (call_data.Array xs) = vtype_class.to_nat i \<bind> ($) xs \<bind> clookup is"
   apply transfer
   by simp
 
-lemma xxx[simp,code]:
+lemma clookup_none[simp,code]:
  "clookup (v # va) (call_data.Value vb) = None"
   apply transfer by simp
 
